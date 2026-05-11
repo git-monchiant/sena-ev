@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 1686" width="2500" height="1686">
+  <rect width="2500" height="1686" fill="white"/>
+  
+    <rect x="8" y="8" width="828" height="835" fill="#00A659"/>
+    <svg x="232" y="155.5" width="380" height="380" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet">
+      <path fill="white" d="M165.4 96l181.2 0c13.6 0 25.7 8.6 30.2 21.4l26.1 74.6-293.8 0 26.1-74.6c4.5-12.8 16.6-21.4 30.2-21.4zm-90.6 .3L39.6 196.8C16.4 206.4 0 229.3 0 256l0 96c0 23.7 12.9 44.4 32 55.4L32 448c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-32 256 0 0 32c0 17.7 14.3 32 32 32l32 0c17.7 0 32-14.3 32-32l0-40.6c19.1-11.1 32-31.7 32-55.4l0-96c0-26.7-16.4-49.6-39.6-59.2L437.2 96.3C423.7 57.8 387.4 32 346.6 32L165.4 32c-40.8 0-77.1 25.8-90.6 64.3zM208 288l96 0c8.8 0 16 7.2 16 16l0 32c0 8.8-7.2 16-16 16l-96 0c-8.8 0-16-7.2-16-16l0-32c0-8.8 7.2-16 16-16zM48 280c0-13.3 10.7-24 24-24l32 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-32 0c-13.3 0-24-10.7-24-24zm360-24l32 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-32 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"/>
+    </svg>
+    <text x="422" y="753" fill="white" font-family="Sukhumvit Set, 'SukhumvitSet', system-ui, sans-serif" font-size="90" font-weight="600" text-anchor="middle">รถของฉัน</text>
+  
+
+    <rect x="844" y="8" width="828" height="835" fill="#00A659"/>
+    <svg x="1068" y="155.5" width="380" height="380" viewBox="0 0 576 512" preserveAspectRatio="xMidYMid meet">
+      <path fill="white" d="M509.4 98.6c7.6-7.6 20.3-5.7 24.1 4.3 6.8 17.7 10.5 37 10.5 57.1 0 88.4-71.6 160-160 160-17.5 0-34.4-2.8-50.2-8L146.9 498.9c-28.1 28.1-73.7 28.1-101.8 0s-28.1-73.7 0-101.8L232 210.2c-5.2-15.8-8-32.6-8-50.2 0-88.4 71.6-160 160-160 20.1 0 39.4 3.7 57.1 10.5 10 3.8 11.8 16.5 4.3 24.1l-88.7 88.7c-3 3-4.7 7.1-4.7 11.3l0 41.4c0 8.8 7.2 16 16 16l41.4 0c4.2 0 8.3-1.7 11.3-4.7l88.7-88.7z"/>
+    </svg>
+    <text x="1258" y="753" fill="white" font-family="Sukhumvit Set, 'SukhumvitSet', system-ui, sans-serif" font-size="90" font-weight="600" text-anchor="middle">จองเซอร์วิส</text>
+  
+
+    <rect x="1680" y="8" width="828" height="835" fill="#00A659"/>
+    <svg x="1904" y="155.5" width="380" height="380" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet">
+      <path fill="white" d="M256 0c4.6 0 9.2 1 13.4 2.9L457.8 82.8c22 9.3 38.4 31 38.3 57.2-.5 99.2-41.3 280.7-213.6 363.2-16.7 8-36.1 8-52.8 0-172.4-82.5-213.1-264-213.6-363.2-.1-26.2 16.3-47.9 38.3-57.2L242.7 2.9C246.9 1 251.4 0 256 0zm0 66.8l0 378.1c138-66.8 175.1-214.8 176-303.4l-176-74.6 0 0z"/>
+    </svg>
+    <text x="2094" y="753" fill="white" font-family="Sukhumvit Set, 'SukhumvitSet', system-ui, sans-serif" font-size="90" font-weight="600" text-anchor="middle">ประกัน/ร้าน</text>
+  
+
+    <rect x="8" y="851" width="828" height="835" fill="#018f4b"/>
+    <svg x="232" y="998.5" width="380" height="380" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet">
+      <path fill="white" d="M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"/>
+    </svg>
+    <text x="422" y="1596" fill="white" font-family="Sukhumvit Set, 'SukhumvitSet', system-ui, sans-serif" font-size="90" font-weight="600" text-anchor="middle">SOS</text>
+  
+
+    <rect x="844" y="851" width="828" height="835" fill="#00A659"/>
+    <svg x="1068" y="998.5" width="380" height="380" viewBox="0 0 448 512" preserveAspectRatio="xMidYMid meet">
+      <path fill="white" d="M224 0c-17.7 0-32 14.3-32 32l0 3.2C119 50 64 114.6 64 192l0 21.7c0 48.1-16.4 94.8-46.4 132.4L7.8 358.3C2.7 364.6 0 372.4 0 380.5 0 400.1 15.9 416 35.5 416l376.9 0c19.6 0 35.5-15.9 35.5-35.5 0-8.1-2.7-15.9-7.8-22.2l-9.8-12.2C400.4 308.5 384 261.8 384 213.7l0-21.7c0-77.4-55-142-128-156.8l0-3.2c0-17.7-14.3-32-32-32zM162 464c7.1 27.6 32.2 48 62 48s54.9-20.4 62-48l-124 0z"/>
+    </svg>
+    <text x="1258" y="1596" fill="white" font-family="Sukhumvit Set, 'SukhumvitSet', system-ui, sans-serif" font-size="90" font-weight="600" text-anchor="middle">แจ้งเตือน</text>
+  
+
+    <rect x="1680" y="851" width="828" height="835" fill="#ea580c"/>
+    <svg x="1904" y="998.5" width="380" height="380" viewBox="0 0 576 512" preserveAspectRatio="xMidYMid meet">
+      <path fill="white" d="M344-32c128.1 0 232 103.9 232 232 0 13.3-10.7 24-24 24s-24-10.7-24-24c0-101.6-82.4-184-184-184-13.3 0-24-10.7-24-24s10.7-24 24-24zm8 192a32 32 0 1 1 0 64 32 32 0 1 1 0-64zM320 88c0-13.3 10.7-24 24-24 75.1 0 136 60.9 136 136 0 13.3-10.7 24-24 24s-24-10.7-24-24c0-48.6-39.4-88-88-88-13.3 0-24-10.7-24-24zM144.1 1.4c19.7-5.4 40.3 4.7 48.1 23.5l40.5 97.3c6.9 16.5 2.1 35.6-11.8 47l-44.1 36.1c32.5 71.6 89 130 159.3 164.9L374.7 323c11.3-13.9 30.4-18.6 47-11.8L519 351.8c18.8 7.8 28.9 28.4 23.5 48.1l-1.5 5.5C523.4 470.1 460.9 525.3 384.6 509.2 209.6 472.1 71.9 334.4 34.8 159.4 18.7 83.1 73.9 20.6 138.5 2.9l5.5-1.5z"/>
+    </svg>
+    <text x="2094" y="1596" fill="white" font-family="Sukhumvit Set, 'SukhumvitSet', system-ui, sans-serif" font-size="90" font-weight="600" text-anchor="middle">ติดต่อศูนย์</text>
+  
+</svg>

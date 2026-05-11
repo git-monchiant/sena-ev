@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  allowedDevOrigins: ["senaev.ngrok.app"],
+  devIndicators: false,
 };
 
 export default nextConfig;
