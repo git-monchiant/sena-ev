@@ -2,11 +2,13 @@ import "server-only";
 import type { FunctionDeclaration } from "@google/genai";
 
 import { calculateFinancing } from "./financing";
+import { rememberCustomerFact } from "./customer-wiki";
 import { escalate } from "./escalate";
 import { listActivePromotions, lookupCarModel, listCarModels } from "./cars";
 import { lookupShowroom, listShowrooms } from "./showrooms";
 import { searchWiki } from "./wiki-search";
 import { sendMaterial } from "./send-material";
+import { updateCustomerPhone } from "./update-customer";
 
 export type ToolContext = {
   conversationId: string;
@@ -157,11 +159,51 @@ export const TOOLS: Record<string, ToolDef> = {
         interestRatePct: args.interest_rate_pct as number,
       }),
   ),
+  remember_customer_fact: t(
+    {
+      name: "remember_customer_fact",
+      description:
+        "บันทึก fact/preference/decision/todo ของลูกค้าเข้า customer wiki — ใช้เมื่อได้ข้อมูลใหม่ที่ควรจำข้ามวัน (preference: ชอบ SUV/งบไม่เกิน 1.2M, decision: เลือก DEEPAL S07 สีดำ, todo: ต้องส่งใบเสนอราคาทาง email). ใช้ slug เดิม = overwrite ของเก่า. ห้ามบันทึกข้อมูลที่ derivable ได้ (ชื่อ/เบอร์/รถปัจจุบัน อยู่ใน DB แล้ว)",
+      parametersJsonSchema: {
+        type: "object",
+        properties: {
+          slug: {
+            type: "string",
+            description:
+              "snake-case ภาษาอังกฤษ เช่น 'budget' / 'preferred-model' / 'family-size' / 'objection-warranty'",
+          },
+          title: { type: "string", description: "หัวข้อสั้นๆ" },
+          kind: {
+            type: "string",
+            description:
+              "preference | observation | decision | todo | note | profile",
+          },
+          body: { type: "string", description: "เนื้อหา 1-3 บรรทัด" },
+          importance: {
+            type: "number",
+            description: "1=high (สำคัญมาก), 2=normal (default), 3=archived",
+          },
+        },
+        required: ["slug", "title", "kind", "body"],
+      },
+    },
+    (args, ctx) =>
+      rememberCustomerFact(
+        {
+          slug: args.slug as string,
+          title: args.title as string,
+          kind: args.kind as string,
+          body: args.body as string,
+          importance: args.importance as number | undefined,
+        },
+        ctx,
+      ),
+  ),
   send_material: t(
     {
       name: "send_material",
       description:
-        "ส่ง Flex card / material ให้ลูกค้าใน LINE chat. ใช้ตอนลูกค้าขอรายละเอียดเชิงลึก เช่น brochure รุ่นรถ, การ์ดโชว์รูม, การ์ดโปร.",
+        "ส่ง Flex card / material ให้ลูกค้าใน LINE chat. ใช้ตอนลูกค้าขอรายละเอียดเชิงลึก เช่น brochure รุ่นรถ, การ์ดโชว์รูม, การ์ดโปร. ถ้ารู้สาขาที่ลูกค้าสนใจ ใส่ `showroom_slug` ด้วย → ปุ่ม 'จองทดลองขับ' ใน car card จะ pre-fill สาขานั้นใน LIFF.",
       parametersJsonSchema: {
         type: "object",
         properties: {
@@ -170,11 +212,40 @@ export const TOOLS: Record<string, ToolDef> = {
             description:
               "slug จาก shared wiki เช่น 'car-jaecoo-j7', 'showroom-bangna', 'promo-rate-199-48m'",
           },
+          showroom_slug: {
+            type: "string",
+            description:
+              "optional: slug ของสาขา (เช่น 'bangyai', 'bangna', 'ratchayothin') ที่ลูกค้าเอ่ยถึง → จะ pre-fill ในปุ่มจองทดลองขับ. ถ้าไม่รู้ ไม่ต้องใส่",
+          },
         },
         required: ["slug"],
       },
     },
-    (args, ctx) => sendMaterial(args.slug as string, ctx),
+    (args, ctx) =>
+      sendMaterial(
+        args.slug as string,
+        ctx,
+        (args.showroom_slug as string | undefined) ?? null,
+      ),
+  ),
+  update_customer_phone: t(
+    {
+      name: "update_customer_phone",
+      description:
+        "บันทึก/แก้เบอร์โทรลูกค้าเข้า DB. ใช้เมื่อลูกค้าให้เบอร์ใหม่ (เช่นปฏิเสธเบอร์เดิม หรือยังไม่มีเบอร์ในระบบ).",
+      parametersJsonSchema: {
+        type: "object",
+        properties: {
+          phone: {
+            type: "string",
+            description: "เบอร์โทรขึ้นต้น 0 (9-10 หลัก) เช่น 0801234567",
+          },
+        },
+        required: ["phone"],
+      },
+    },
+    (args, ctx) =>
+      updateCustomerPhone({ phone: args.phone as string }, ctx),
   ),
   escalate: t(
     {

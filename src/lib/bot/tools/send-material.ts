@@ -18,10 +18,15 @@ import type { ToolContext } from "./index";
  *
  * The slug must reference a sena_ev.wiki_pages row that has a backing
  * ref_table (car_models | showrooms | promotions).
+ *
+ * Optional `showroomSlug` lets the bot pre-fill the LIFF test-drive
+ * form for buttons inside car cards. Ignored if the resolved card
+ * doesn't have a test-drive button (e.g. promo cards).
  */
 export async function sendMaterial(
   slug: string,
   ctx: ToolContext,
+  showroomSlug: string | null = null,
 ): Promise<unknown> {
   const page = await queryOne<{
     id: string;
@@ -63,6 +68,7 @@ export async function sendMaterial(
     bodyMd: page.body_md,
     refTable: page.ref_table,
     refId: page.ref_id,
+    showroomSlug,
   };
   const built = await buildMaterialFlex(input);
   if (!built) return { error: `ไม่สามารถสร้าง material สำหรับ slug="${slug}"` };

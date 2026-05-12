@@ -20,6 +20,11 @@ export type MaterialFlexInput = {
   bodyMd: string;
   refTable: string | null;
   refId: string | null;
+  /**
+   * Optional showroom slug the bot wants to pre-select in the LIFF
+   * test-drive form. Appended as `?showroom=…` to deep links if set.
+   */
+  showroomSlug?: string | null;
 };
 
 export type MaterialFlexResult = {
@@ -39,8 +44,9 @@ export type MaterialFlexResult = {
 export async function buildMaterialFlex(
   input: MaterialFlexInput,
 ): Promise<MaterialFlexResult | null> {
+  const showroomSlug = input.showroomSlug ?? null;
   if (input.refTable === "car_models" && input.refId) {
-    return buildCarFlex(input.refId);
+    return buildCarFlex(input.refId, showroomSlug);
   }
   if (input.refTable === "showrooms" && input.refId) {
     return buildShowroomFlex(input.refId);
@@ -134,9 +140,13 @@ function headerWithLogo(
 
 async function buildCarFlex(
   modelId: string,
+  showroomSlug: string | null = null,
 ): Promise<MaterialFlexResult | null> {
   const m = await getCarModelById(modelId);
   if (!m) return null;
+  const branchSlug = showroomSlug
+    ? await resolveShowroomSlug(showroomSlug)
+    : null;
 
   const branded = m.name.toUpperCase().startsWith(m.brand.toUpperCase())
     ? m.name
@@ -170,7 +180,11 @@ async function buildCarFlex(
     action: {
       type: "uri",
       label: "จองทดลองขับ",
-      uri: liffUri(`test-drive?model=${m.slug}`),
+      uri: liffUri(
+        `test-drive?model=${m.slug}${
+          branchSlug ? `&showroom=${branchSlug}` : ""
+        }`,
+      ),
     },
   });
 
@@ -303,12 +317,22 @@ async function buildShowroomFlex(
       action: { type: "uri", label: "เปิดแผนที่", uri: mapUrl },
     });
   }
+  footerButtons.push({
+    type: "button",
+    style: "secondary",
+    height: "sm",
+    action: {
+      type: "uri",
+      label: "จองทดลองขับสาขานี้",
+      uri: liffUri(`test-drive?showroom=${r.slug}`),
+    },
+  });
   if (r.phone) {
     footerButtons.push({
       type: "button",
-      style: "secondary",
+      style: "link",
       height: "sm",
-      action: { type: "uri", label: "โทร", uri: `tel:${r.phone}` },
+      action: { type: "uri", label: "โทรสาขา", uri: `tel:${r.phone}` },
     });
   }
 
@@ -519,6 +543,24 @@ function liffUri(slug: string): string {
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
   if (liffId) return `https://liff.line.me/${liffId}/${slug}`;
   return `https://senagreenauto.co.th/liff/${slug}`;
+}
+
+/**
+ * Resolve a caller-supplied showroom hint (slug, branch nickname, etc)
+ * to a real showroom slug. Returns null if no active match found.
+ */
+async function resolveShowroomSlug(hint: string): Promise<string | null> {
+  const norm = hint.trim().toLowerCase().replace(/^showroom-/, "");
+  if (!norm) return null;
+  const r = await queryOne<{ slug: string }>(
+    `SELECT slug FROM sena_ev.showrooms
+      WHERE is_active = true
+        AND (slug = $1 OR slug ILIKE $2 OR LOWER(name) LIKE $2)
+      ORDER BY (slug = $1) DESC, slug ASC
+      LIMIT 1`,
+    [norm, `%${norm}%`],
+  );
+  return r?.slug ?? null;
 }
 
 function extractRow(

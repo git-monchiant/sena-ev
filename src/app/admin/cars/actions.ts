@@ -8,6 +8,16 @@ import {
   updateCarModel,
   type CarModelInput,
 } from "@/lib/car-models";
+import { syncCarWikiPage } from "@/lib/bot/wiki/sync";
+
+async function syncWiki(id: string) {
+  // Best-effort — wiki sync must NOT break the admin form.
+  try {
+    await syncCarWikiPage(id);
+  } catch (err) {
+    console.error("[admin/cars] wiki sync failed", err);
+  }
+}
 
 function parseInput(formData: FormData): CarModelInput {
   const slug = String(formData.get("slug") ?? "").trim();
@@ -49,8 +59,10 @@ function parseInput(formData: FormData): CarModelInput {
 
 export async function createCarModelAction(formData: FormData) {
   const input = parseInput(formData);
-  await createCarModel(input);
+  const id = await createCarModel(input);
+  await syncWiki(id);
   revalidatePath("/admin/cars");
+  revalidatePath("/admin/wiki");
   revalidatePath("/liff/catalog");
   redirect("/admin/cars");
 }
@@ -60,8 +72,10 @@ export async function updateCarModelAction(formData: FormData) {
   if (!id) throw new Error("missing id");
   const input = parseInput(formData);
   await updateCarModel(id, input);
+  await syncWiki(id);
   revalidatePath("/admin/cars");
   revalidatePath(`/admin/cars/${id}`);
+  revalidatePath("/admin/wiki");
   revalidatePath("/liff/catalog");
 }
 
@@ -69,7 +83,10 @@ export async function deleteCarModelAction(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   if (!id) throw new Error("missing id");
   await deleteCarModel(id);
+  // Source row is gone — sync will unpublish the wiki page.
+  await syncWiki(id);
   revalidatePath("/admin/cars");
+  revalidatePath("/admin/wiki");
   revalidatePath("/liff/catalog");
   redirect("/admin/cars");
 }
@@ -95,6 +112,8 @@ export async function toggleActiveAction(formData: FormData) {
     sortOrder: cur.sortOrder,
     isActive: next,
   });
+  await syncWiki(id);
   revalidatePath("/admin/cars");
+  revalidatePath("/admin/wiki");
   revalidatePath("/liff/catalog");
 }

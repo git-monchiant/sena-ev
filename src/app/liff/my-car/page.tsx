@@ -34,15 +34,20 @@ type Insurance = {
 };
 
 export default function MyCarPage() {
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [insurance, setInsurance] = useState<Insurance | null>(null);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [insurances, setInsurances] = useState<Record<string, Insurance | null>>(
+    {},
+  );
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugUserId, setDebugUserId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const profile = await getProfile();
+        setDebugUserId(profile.userId);
         const res = await fetch(
           `/api/liff/me/vehicle?lineUserId=${encodeURIComponent(profile.userId)}`,
           { cache: "no-store" },
@@ -52,11 +57,13 @@ export default function MyCarPage() {
           return;
         }
         const data = (await res.json()) as {
-          vehicle: Vehicle | null;
-          insurance: Insurance | null;
+          vehicles?: Vehicle[];
+          insurances?: Record<string, Insurance | null>;
         };
-        setVehicle(data.vehicle);
-        setInsurance(data.insurance);
+        const vs = data.vehicles ?? [];
+        setVehicles(vs);
+        setInsurances(data.insurances ?? {});
+        setActiveId(vs[0]?.id ?? null);
       } catch (e) {
         setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด");
       } finally {
@@ -64,6 +71,10 @@ export default function MyCarPage() {
       }
     })();
   }, []);
+
+  const vehicle =
+    vehicles.find((v) => v.id === activeId) ?? vehicles[0] ?? null;
+  const insurance = vehicle ? (insurances[vehicle.id] ?? null) : null;
 
   if (loading) {
     return (
@@ -108,6 +119,16 @@ export default function MyCarPage() {
             <br />
             ติดต่อทีมงานเพื่อยืนยันความเป็นเจ้าของ
           </p>
+          {debugUserId && (
+            <div className="mx-auto mt-6 max-w-xs border border-dashed border-zinc-300 p-3 text-left">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                Debug · LIFF userId
+              </div>
+              <div className="mt-1 break-all font-mono text-[10px] text-zinc-600">
+                {debugUserId}
+              </div>
+            </div>
+          )}
         </div>
       </FeaturePage>
     );
@@ -153,8 +174,43 @@ export default function MyCarPage() {
     <FeaturePage
       eyebrow="My Vehicle"
       title="รถของฉัน"
-      subtitle="ข้อมูลรถ ทะเบียน ประกัน และนัดเซอร์วิสครั้งต่อไป"
+      subtitle={
+        vehicles.length > 1
+          ? `${vehicles.length} คัน · เลือกคันที่ต้องการดู`
+          : "ข้อมูลรถ ทะเบียน ประกัน และนัดเซอร์วิสครั้งต่อไป"
+      }
     >
+      {vehicles.length > 1 && (
+        <div className="mb-4 flex gap-2 overflow-x-auto">
+          {vehicles.map((v) => {
+            const label = [v.modelBrand, v.modelName].filter(Boolean).join(" ");
+            const isActive = v.id === activeId;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => setActiveId(v.id)}
+                className={`flex shrink-0 items-center gap-2 border px-3 py-2 text-sm font-medium ${
+                  isActive
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-zinc-200 bg-white text-zinc-600"
+                }`}
+              >
+                <CarIcon className="size-4" strokeWidth={2} />
+                <span>{label || "EV"}</span>
+                {v.licensePlate && (
+                  <span
+                    className={`text-[10px] ${isActive ? "opacity-70" : "text-zinc-400"}`}
+                  >
+                    {v.licensePlate}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <section className="bg-brand p-6 text-white">
         <div className="text-[10px] font-medium uppercase tracking-[0.22em] opacity-70">
           Your EV

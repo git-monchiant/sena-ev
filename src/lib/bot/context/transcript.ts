@@ -13,19 +13,34 @@ type Row = {
 /**
  * Pull the last N non-internal messages from a conversation in
  * chronological (oldest-first) order, normalised to text turns.
+ *
+ * When `sinceSentAt` is provided, only messages strictly newer than
+ * that timestamp are returned — used together with the rolling summary
+ * so we don't double-render messages that are already summarised.
  */
 export async function loadTranscript(
   conversationId: string,
   limit = 30,
+  sinceSentAt: string | null = null,
 ): Promise<BotTranscriptTurn[]> {
+  const params: unknown[] = [conversationId];
+  const conds: string[] = [
+    "conversation_id = $1",
+    "is_internal_note = false",
+  ];
+  if (sinceSentAt) {
+    params.push(sinceSentAt);
+    conds.push(`sent_at > $${params.length}`);
+  }
+  params.push(limit);
   const r = await query<Row>(
     `SELECT direction, message_type, content, is_internal_note,
             sent_at::text
        FROM sena_ev.messages
-      WHERE conversation_id = $1 AND is_internal_note = false
+      WHERE ${conds.join(" AND ")}
       ORDER BY sent_at DESC
-      LIMIT $2`,
-    [conversationId, limit],
+      LIMIT $${params.length}`,
+    params,
   );
   return r.rows
     .reverse()

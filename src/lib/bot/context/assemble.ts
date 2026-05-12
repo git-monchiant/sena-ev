@@ -22,12 +22,18 @@ export async function assembleBotContext(
   );
   if (!conv) return null;
 
-  const [customerBlock, sharedBlock, summary, transcript] = await Promise.all([
+  const [customerBlock, sharedBlock, summary] = await Promise.all([
     renderCustomerBlock(conv.customer_id),
     renderSharedWikiBlock(),
     getSummary(conversationId),
-    loadTranscript(conversationId, opts.transcriptLimit ?? 30),
   ]);
+  // Load transcript AFTER the summary so we can skip messages that are
+  // already represented by the rolling summary.
+  const transcript = await loadTranscript(
+    conversationId,
+    opts.transcriptLimit ?? 30,
+    summary?.throughSentAt ?? null,
+  );
 
   const sections: string[] = [];
   sections.push("# ข้อมูลผลิตภัณฑ์ / โชว์รูม / โปรโมชั่น (shared wiki)");

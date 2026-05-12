@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Plus, Search } from "lucide-react";
+import { FileText, Plus, RefreshCw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,8 @@ export default function WikiListPage() {
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -44,6 +46,32 @@ export default function WikiListPage() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncStatus(null);
+    try {
+      const res = await fetch("/api/admin/bot/seed", { method: "POST" });
+      const data = (await res.json()) as {
+        cars?: number;
+        showrooms?: number;
+        promos?: number;
+        ok?: boolean;
+      };
+      if (!res.ok || !data.ok) {
+        setSyncStatus("ซิงค์ไม่สำเร็จ");
+      } else {
+        setSyncStatus(
+          `อัพเดท: รถ ${data.cars ?? 0} · ศูนย์ ${data.showrooms ?? 0} · โปร ${data.promos ?? 0}`,
+        );
+        load();
+      }
+    } catch {
+      setSyncStatus("ซิงค์ไม่สำเร็จ");
+    } finally {
+      setSyncing(false);
+    }
   }, [load]);
 
   const grouped = pages.reduce<Record<string, Page[]>>((acc, p) => {
@@ -75,6 +103,16 @@ export default function WikiListPage() {
             </option>
           ))}
         </select>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleSync}
+          disabled={syncing}
+          title="ซิงค์ wiki จากข้อมูลใน DB (รถ/ศูนย์/โปร)"
+        >
+          <RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "กำลังซิงค์…" : "ซิงค์จาก DB"}
+        </Button>
         <Link href="/admin/wiki/new">
           <Button size="sm">
             <Plus className="size-4" />
@@ -82,6 +120,11 @@ export default function WikiListPage() {
           </Button>
         </Link>
       </header>
+      {syncStatus && (
+        <div className="border-b bg-emerald-50 px-5 py-2 text-xs font-medium text-emerald-700">
+          {syncStatus}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-5">
         {loading && (

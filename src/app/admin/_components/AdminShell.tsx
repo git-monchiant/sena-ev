@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BookText,
   Car,
@@ -11,7 +12,6 @@ import {
   LayoutDashboard,
   LayoutGrid,
   MessageSquareText,
-  PanelLeft,
   Tag,
   Users,
   type LucideIcon,
@@ -36,20 +36,11 @@ const NAV: NavItem[] = [
   { href: "/admin/wiki", label: "Wiki", icon: BookText },
 ];
 
-const STORAGE_KEY = "sena-admin-sidebar-collapsed";
-
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [inboxBadge, setInboxBadge] = useState(0);
   const [connected, setConnected] = useState(false);
-  const [collapsed, setCollapsed] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    const stored =
-      typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-    if (stored !== null) setCollapsed(stored === "1");
-  }, []);
 
   useEffect(() => {
     const es = new EventSource("/api/admin/inbox/stream");
@@ -65,16 +56,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (pathname === "/admin/inbox") setInboxBadge(0);
   }, [pathname]);
-
-  function toggleCollapsed() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
-      }
-      return next;
-    });
-  }
 
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
@@ -92,24 +73,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         />
       </audio>
 
-      <aside
-        className={cn(
-          "flex shrink-0 flex-col bg-sidebar/80 backdrop-blur transition-[width] duration-200",
-          collapsed ? "w-14" : "w-56",
-        )}
-      >
-        <div className="flex h-14 items-center gap-2 px-3">
+      <aside className="flex w-14 shrink-0 flex-col bg-sidebar/80 backdrop-blur">
+        <div className="flex h-14 items-center justify-center">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white shadow-sm">
             S
           </div>
-          {!collapsed && (
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">Sena EV</span>
-              <span className="truncate text-[10px] text-muted-foreground">
-                Admin Console
-              </span>
-            </div>
-          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2">
@@ -121,27 +89,21 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 item.href === "/admin/inbox" && inboxBadge > 0;
               return (
                 <li key={item.href} className="relative">
-                  <Link
-                    href={item.href}
-                    title={collapsed ? item.label : undefined}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors",
-                      collapsed && "justify-center",
-                      active
-                        ? "bg-card font-medium text-foreground shadow-sm ring-1 ring-border/60"
-                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="size-4 shrink-0" />
-                    {!collapsed && <span className="flex-1">{item.label}</span>}
-                    {showBadge && !collapsed && (
-                      <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                        {inboxBadge}
-                      </span>
-                    )}
-                  </Link>
-                  {showBadge && collapsed && (
-                    <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-red-600" />
+                  <HoverLabel label={item.label} badgeCount={showBadge ? inboxBadge : 0}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        "flex items-center justify-center rounded-lg px-2 py-2 transition-colors",
+                        active
+                          ? "bg-card text-foreground shadow-sm ring-1 ring-border/60"
+                          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                    </Link>
+                  </HoverLabel>
+                  {showBadge && (
+                    <span className="pointer-events-none absolute right-1.5 top-1.5 size-2 rounded-full bg-red-600" />
                   )}
                 </li>
               );
@@ -150,24 +112,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-2 pt-1">
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground",
-              collapsed && "justify-center",
-            )}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <PanelLeft className="size-4" />
-            {!collapsed && <span>ย่อ sidebar</span>}
-          </button>
-          <div
-            className={cn(
-              "mt-1 flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground",
-              collapsed && "justify-center",
-            )}
-          >
+          <div className="flex items-center justify-center py-1">
             <span
               title={connected ? "Realtime connected" : "Connecting..."}
               className={cn(
@@ -175,26 +120,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 connected ? "bg-green-500" : "bg-gray-400",
               )}
             />
-            {!collapsed && (
-              <span className="truncate">
-                {connected ? "Realtime connected" : "Connecting..."}
-              </span>
-            )}
           </div>
         </div>
       </aside>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-2 bg-background/70 px-4 backdrop-blur">
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-            title="Toggle sidebar"
-          >
-            <PanelLeft className="size-4" />
-          </button>
-          <div className="mr-2 h-4 w-px bg-border/70" />
           <h1 className="text-sm font-semibold">{currentLabel}</h1>
           <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
             <span>OA: @551moqzs (SENA-EV)</span>
@@ -208,6 +139,68 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Renders the child element as the trigger and shows a tooltip-style label
+ * to the right on hover. Uses a portal so parent overflow:hidden / transforms
+ * don't clip it.
+ */
+function HoverLabel({
+  label,
+  badgeCount,
+  children,
+}: {
+  label: string;
+  badgeCount: number;
+  children: React.ReactNode;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !wrapRef.current) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    setPos({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+  }, [open]);
+
+  return (
+    <div
+      ref={wrapRef}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      {children}
+      {mounted && open && pos &&
+        createPortal(
+          <span
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              transform: "translateY(-50%)",
+            }}
+            className="pointer-events-none z-[9999] flex items-center gap-2 whitespace-nowrap rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg"
+          >
+            {label}
+            {badgeCount > 0 && (
+              <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold">
+                {badgeCount}
+              </span>
+            )}
+          </span>,
+          document.body,
+        )}
     </div>
   );
 }

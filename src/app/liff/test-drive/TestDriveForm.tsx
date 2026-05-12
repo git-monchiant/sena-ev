@@ -32,8 +32,11 @@ export function TestDriveForm({
   const [modelSlug, setModelSlug] = useState<string>(
     sp.get("model") ?? models[0]?.slug ?? "",
   );
+  const showroomFromQuery = sp.get("showroom");
   const [showroomSlug, setShowroomSlug] = useState<string>(
-    showrooms[0]?.slug ?? "",
+    (showroomFromQuery && showrooms.some((s) => s.slug === showroomFromQuery)
+      ? showroomFromQuery
+      : showrooms[0]?.slug) ?? "",
   );
   const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState<string | null>(null);

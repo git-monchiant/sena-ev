@@ -6,6 +6,7 @@ import {
 import { query, queryOne } from "../db";
 import { getMessagingClient } from "../line/client";
 import { emitInboxEvent } from "../sse";
+import { maybeUpdateSummary } from "./context/build-summary";
 import { classifyEscalation } from "./escalation";
 import { generateBotReply } from "./invoke";
 
@@ -57,7 +58,13 @@ export async function handleInboundMessage(params: {
   const escal = classifyEscalation(text);
   if (escal) {
     await markEscalated(params.conversationId, escal.reason, escal.matched);
-    const holding = "ขอเช็คให้ก่อนนะคะ ทีมงานจะติดต่อกลับ";
+    const phone = await queryOne<{ phone: string | null }>(
+      `SELECT phone FROM sena_ev.customers WHERE id = $1`,
+      [params.customerId],
+    );
+    const holding = phone?.phone
+      ? `ขอเช็คให้ก่อนนะคะ ทีมงานจะติดต่อกลับเบอร์ ${phone.phone} ใช้ได้มั้ยคะ?`
+      : "ขอเช็คให้ก่อนนะคะ ขอเบอร์ติดต่อกลับด้วยได้มั้ยคะ";
     await sendAndSave(params, holding);
     return { action: "escalated", reason: escal.reason };
   }
@@ -68,10 +75,16 @@ export async function handleInboundMessage(params: {
     userText: text,
   });
 
-  const reply = (result.reply ?? "").trim();
+  const reply = sanitizeForLine((result.reply ?? "").trim());
   if (reply) {
     await sendAndSave(params, reply);
   }
+
+  // Roll the conversation summary forward in the background. Self-skips
+  // when there's nothing to fold yet, so safe to call after every turn.
+  maybeUpdateSummary(params.conversationId).catch((err) =>
+    console.error("[bot] summary update failed", err),
+  );
 
   return {
     action: "replied",
@@ -100,6 +113,31 @@ async function markEscalated(
       WHERE id = $1`,
     [conversationId],
   );
+}
+
+/**
+ * Strip markdown formatting that LINE renders literally (LINE does not
+ * support markdown). Belt-and-suspenders alongside the no-markdown rule
+ * in the system prompt — LLMs occasionally leak it anyway.
+ */
+function sanitizeForLine(text: string): string {
+  if (!text) return text;
+  let out = text;
+  // **bold** / __bold__  →  bold
+  out = out.replace(/\*\*([^*\n]+)\*\*/g, "$1");
+  out = out.replace(/__([^_\n]+)__/g, "$1");
+  // *italic* / _italic_  (word-bounded so we don't eat lone "*")
+  out = out.replace(/(?<![*\w])\*([^*\n]+?)\*(?!\w)/g, "$1");
+  out = out.replace(/(?<![_\w])_([^_\n]+?)_(?!\w)/g, "$1");
+  // markdown headings at line start: "# ", "## ", "### " …
+  out = out.replace(/^#{1,6}\s+/gm, "");
+  // bullet markers at line start: "- ", "* ", "+ "
+  out = out.replace(/^[\s]*[-*+]\s+/gm, "");
+  // inline `code` (keep contents)
+  out = out.replace(/`([^`\n]+)`/g, "$1");
+  // collapse 3+ blank lines into 2
+  out = out.replace(/\n{3,}/g, "\n\n");
+  return out.trim();
 }
 
 async function sendAndSave(

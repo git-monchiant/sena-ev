@@ -130,9 +130,11 @@ type ConversationDetail = {
   serviceBookings: ServiceBooking[];
 };
 
+const INBOX_LAST_SELECTED_KEY = "sena-admin-inbox-last-selected";
+
 export default function InboxPage() {
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedIdState] = useState<string | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [text, setText] = useState("");
   const [internalNote, setInternalNote] = useState(false);
@@ -140,6 +142,15 @@ export default function InboxPage() {
   const [quoted, setQuoted] = useState<QuotedDraft | null>(null);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [search, setSearch] = useState("");
+  const restoredRef = useRef(false);
+
+  const setSelectedId = useCallback((id: string | null) => {
+    setSelectedIdState(id);
+    if (typeof window !== "undefined") {
+      if (id) localStorage.setItem(INBOX_LAST_SELECTED_KEY, id);
+      else localStorage.removeItem(INBOX_LAST_SELECTED_KEY);
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/tags", { cache: "no-store" })
@@ -152,6 +163,19 @@ export default function InboxPage() {
     const data = (await res.json()) as { conversations: ConversationListItem[] };
     setConversations(data.conversations);
   }, []);
+
+  // Restore last-selected conversation once the list arrives (only on first load).
+  useEffect(() => {
+    if (restoredRef.current || conversations.length === 0) return;
+    restoredRef.current = true;
+    const saved =
+      typeof window !== "undefined"
+        ? localStorage.getItem(INBOX_LAST_SELECTED_KEY)
+        : null;
+    if (saved && conversations.some((c) => c.id === saved)) {
+      setSelectedIdState(saved);
+    }
+  }, [conversations]);
 
   const fetchDetail = useCallback(async (id: string) => {
     const res = await fetch(`/api/admin/inbox/conversations/${id}`, {
@@ -1085,6 +1109,8 @@ function MessageBubble({
   const isOutbound = message.direction === "outbound";
   const isMedia =
     message.message_type === "image" || message.message_type === "video";
+  const isFlex =
+    message.message_type === "flex" || message.message_type === "location";
 
   function quotePreview(): string {
     if (message.message_type === "text") {
@@ -1144,9 +1170,11 @@ function MessageBubble({
           onTouchCancel={clearLongPress}
           className={cn(
             "relative w-fit max-w-full cursor-context-menu overflow-hidden shadow-sm",
-            isMedia
-              ? "max-w-[200px] p-4"
-              : "px-5 py-3 text-sm leading-relaxed",
+            isFlex
+              ? "p-2"
+              : isMedia
+                ? "max-w-[200px] p-4"
+                : "px-5 py-3 text-sm leading-relaxed",
             cornerClass,
             message.is_unsent
               ? "bg-muted text-muted-foreground italic line-through"
@@ -1397,6 +1425,188 @@ function QuotedContent({
   }
 }
 
+type FlexCardData = {
+  title?: string;
+  bodyText?: string | null;
+  imageUrl?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  details?: { label: string; value: string }[];
+  category?: string | null;
+  kind?: string | null;
+};
+
+const FLEX_CATEGORY_META: Record<
+  string,
+  { pillLabel: string; pillBg: string; pillFg: string }
+> = {
+  pin: {
+    pillLabel: "โชว์รูม",
+    pillBg: "bg-sky-50",
+    pillFg: "text-sky-700",
+  },
+  car: {
+    pillLabel: "รุ่นรถ",
+    pillBg: "bg-emerald-50",
+    pillFg: "text-emerald-700",
+  },
+  promo: {
+    pillLabel: "โปรโมชั่น",
+    pillBg: "bg-amber-50",
+    pillFg: "text-amber-800",
+  },
+  material: {
+    pillLabel: "ข้อมูล",
+    pillBg: "bg-slate-100",
+    pillFg: "text-slate-600",
+  },
+};
+
+function FlexCard({
+  card,
+  size = "full",
+}: {
+  card: FlexCardData;
+  size?: "full" | "small" | "mini";
+}) {
+  const details = Array.isArray(card.details) ? card.details : [];
+  const meta = FLEX_CATEGORY_META[card.category ?? ""] ?? FLEX_CATEGORY_META.material!;
+  const phone = details.find((d) => d.label === "โทร")?.value ?? null;
+  const isCancel = card.kind === "cancel";
+
+  if (size === "mini") {
+    return (
+      <div className="w-32 shrink-0 overflow-hidden rounded-lg border border-zinc-200 bg-white text-zinc-900">
+        {card.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={card.imageUrl}
+            alt={card.title ?? ""}
+            className="aspect-[5/3] w-full bg-white object-contain"
+          />
+        ) : (
+          <div className={cn("flex aspect-[5/3] w-full items-center justify-center", meta.pillBg)}>
+            <span className={cn("text-[10px] font-bold uppercase tracking-wider", meta.pillFg)}>
+              {meta.pillLabel}
+            </span>
+          </div>
+        )}
+        <div className="px-2 py-1.5">
+          <div className="truncate text-[11px] font-bold leading-tight">{card.title}</div>
+          {details.slice(0, 1).map((d) => (
+            <div key={d.label} className="mt-0.5 truncate text-[10px] text-zinc-500">
+              {d.value}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // small + full share layout, differ in width/padding/text sizes
+  const isSmall = size === "small";
+  const widthCls = isSmall ? "w-52" : "w-72";
+  const padX = isSmall ? "px-3" : "px-5";
+  const padTop = isSmall ? "pt-2.5" : "pt-4";
+  const radius = isSmall ? "rounded-xl" : "rounded-2xl";
+  const titleSize = isSmall ? "text-sm" : "text-lg";
+  const detailSize = isSmall ? "text-[10px]" : "text-xs";
+  const eyebrowSize = isSmall ? "text-[8px]" : "text-[10px]";
+  const pillSize = isSmall ? "text-[8px]" : "text-[10px]";
+  const btnSize = isSmall ? "text-[10px]" : "text-xs";
+  const sepMargin = isSmall ? "my-2" : "my-3";
+
+  return (
+    <div
+      className={cn(
+        "shrink-0 overflow-hidden bg-white text-zinc-900 shadow-sm",
+        widthCls,
+        radius,
+      )}
+    >
+      <div className={cn("flex items-center justify-between gap-2", padX, padTop)}>
+        <span className={cn("font-bold uppercase tracking-[0.18em] text-emerald-700", eyebrowSize)}>
+          SENA GREEN AUTO
+        </span>
+        <span className={cn("rounded-full px-2 py-0.5 font-bold", pillSize, meta.pillBg, meta.pillFg)}>
+          {meta.pillLabel}
+        </span>
+      </div>
+
+      {card.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={card.imageUrl}
+          alt={card.title ?? ""}
+          className={cn("aspect-[16/9] w-full bg-white object-contain", isSmall ? "mt-2" : "mt-3")}
+        />
+      )}
+
+      <div className={cn(padX, isSmall ? "pt-2" : "pt-3")}>
+        <div className={cn("font-bold leading-snug", titleSize, isCancel && "text-red-600")}>
+          {card.title}
+        </div>
+        {card.bodyText && (
+          <div
+            className={cn(
+              "mt-1",
+              detailSize,
+              isCancel ? "text-red-500 line-through" : "text-zinc-500",
+            )}
+          >
+            {card.bodyText}
+          </div>
+        )}
+      </div>
+
+      {details.length > 0 && (
+        <>
+          <div className={cn("h-px bg-zinc-200", isSmall ? "mx-3" : "mx-5", sepMargin)} />
+          <dl className={cn("space-y-1 pb-2", padX, detailSize)}>
+            {details.map((d) => (
+              <div key={d.label} className="flex items-start gap-3">
+                <dt className="shrink-0 text-zinc-400">{d.label}</dt>
+                <dd className="flex-1 break-words text-right font-bold text-zinc-900">
+                  {d.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+
+      {(card.ctaUrl || phone) && (
+        <div className={cn("space-y-1 pb-3", isSmall ? "px-2" : "px-3")}>
+          {card.ctaUrl && (
+            <a
+              href={card.ctaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "block rounded-md bg-[#15803d] py-2 text-center font-bold text-white",
+                btnSize,
+              )}
+            >
+              {card.ctaLabel || "ดูเพิ่มเติม"}
+            </a>
+          )}
+          {phone && (
+            <a
+              href={`tel:${phone}`}
+              className={cn(
+                "block rounded-md bg-zinc-100 py-2 text-center font-bold text-zinc-700",
+                btnSize,
+              )}
+            >
+              โทร
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessageContent({ message }: { message: Message }) {
   const isInbound = message.direction === "inbound";
   const contentSrc = `/api/admin/inbox/messages/${message.id}/content`;
@@ -1471,34 +1681,45 @@ function MessageContent({ message }: { message: Message }) {
     case "location": {
       const lat = message.content.latitude as number | undefined;
       const lng = message.content.longitude as number | undefined;
-      const title = (message.content.title as string) ?? "ตำแหน่ง";
+      const rawTitle = (message.content.title as string) ?? "ตำแหน่ง";
       const address = message.content.address as string | undefined;
-      const href =
-        lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : undefined;
-      const inner = (
-        <div className="flex max-w-[240px] items-start gap-2.5">
-          <MapPin className="size-5 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{title}</div>
-            {address && (
-              <div className="line-clamp-2 text-[10px] opacity-75">
-                {address}
-              </div>
-            )}
-            {href && (
-              <div className="mt-0.5 text-[10px] underline opacity-90">
-                เปิดใน Google Maps
-              </div>
-            )}
+      const mapUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}` : undefined;
+      // Strip "Sena Green Auto — " prefix to surface branch name
+      const title = rawTitle.includes(" — ")
+        ? rawTitle.split(" — ").slice(1).join(" — ")
+        : rawTitle;
+      return (
+        <div className="w-72 shrink-0 overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-sm">
+          <div className="flex items-center justify-between gap-2 px-5 pt-4">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+              SENA GREEN AUTO
+            </span>
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+              ที่ตั้ง
+            </span>
           </div>
+          <div className="px-5 pt-2">
+            <div className="text-lg font-bold leading-snug">{title}</div>
+          </div>
+          {address && (
+            <>
+              <div className="mx-5 my-3 h-px bg-zinc-200" />
+              <div className="px-5 pb-3 text-xs text-zinc-600">{address}</div>
+            </>
+          )}
+          {mapUrl && (
+            <div className="space-y-1.5 px-3 pb-3">
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-md bg-[#15803d] py-2 text-center text-xs font-bold text-white"
+              >
+                เปิดแผนที่
+              </a>
+            </div>
+          )}
         </div>
-      );
-      return href ? (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="block">
-          {inner}
-        </a>
-      ) : (
-        inner
       );
     }
 
@@ -1517,16 +1738,6 @@ function MessageContent({ message }: { message: Message }) {
     }
 
     case "flex": {
-      type FlexCardData = {
-        title?: string;
-        bodyText?: string | null;
-        imageUrl?: string | null;
-        ctaLabel?: string | null;
-        ctaUrl?: string | null;
-        details?: { label: string; value: string }[];
-        category?: string | null;
-        kind?: string | null;
-      };
       const content = message.content as
         | { type?: "carousel"; items: FlexCardData[] }
         | FlexCardData;
@@ -1538,206 +1749,15 @@ function MessageContent({ message }: { message: Message }) {
             ? [content]
             : [];
 
-      const renderPin = (
-        c: {
-          title?: string;
-          bodyText?: string | null;
-          ctaLabel?: string | null;
-          ctaUrl?: string | null;
-        },
-        key: number | string,
-      ) => (
-        <a
-          key={key}
-          href={c.ctaUrl ?? "#"}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-64 shrink-0 items-start gap-2.5 rounded-lg border bg-white p-2.5 text-zinc-900"
-        >
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-50">
-            <MapPin
-              className="size-4 text-emerald-600"
-              strokeWidth={2.5}
-            />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold leading-tight">
-              {c.title}
-            </div>
-            {c.bodyText && (
-              <div className="mt-0.5 truncate text-[11px] text-zinc-500">
-                {c.bodyText}
-              </div>
-            )}
-            {c.ctaUrl && (
-              <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-700">
-                {c.ctaLabel || "เปิดแผนที่"} →
-              </div>
-            )}
-          </div>
-        </a>
-      );
-
-      const renderBubble = (
-        c: {
-          title?: string;
-          bodyText?: string | null;
-          imageUrl?: string | null;
-          ctaLabel?: string | null;
-          ctaUrl?: string | null;
-          details?: { label: string; value: string }[];
-          category?: string | null;
-          kind?: string | null;
-        },
-        key: number | string,
-        compact = false,
-      ) => {
-        if (c.category === "pin") return renderPin(c, key);
-        return COMPACT_OR_FULL(c, key, compact);
-      };
-
-      const COMPACT_OR_FULL = (
-        c: {
-          title?: string;
-          bodyText?: string | null;
-          imageUrl?: string | null;
-          ctaLabel?: string | null;
-          ctaUrl?: string | null;
-          details?: { label: string; value: string }[];
-          kind?: string | null;
-        },
-        key: number | string,
-        compact: boolean,
-      ) =>
-        compact ? (
-          <div
-            key={key}
-            className="w-28 shrink-0 overflow-hidden rounded border bg-white text-zinc-900"
-          >
-            {c.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={c.imageUrl}
-                alt={c.title ?? ""}
-                className="aspect-[5/3] w-full bg-white object-contain"
-              />
-            ) : (
-              <div className="aspect-[5/3] w-full bg-zinc-100" />
-            )}
-            <div className="px-1.5 py-1">
-              <div className="truncate text-[10px] font-bold leading-tight">
-                {c.title}
-              </div>
-              {Array.isArray(c.details) &&
-                c.details.slice(0, 2).map((d) => (
-                  <div
-                    key={d.label}
-                    className="mt-0.5 truncate text-[9px] text-zinc-500"
-                  >
-                    {d.label} <span className="font-bold text-zinc-900">{d.value}</span>
-                  </div>
-                ))}
-            </div>
-            {c.ctaUrl && (
-              <div className="px-1.5 pb-1.5">
-                <a
-                  href={c.ctaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block truncate rounded bg-[#1f5d3a] px-1 py-1 text-center text-[9px] font-bold text-white"
-                >
-                  {c.ctaLabel || "ดูเพิ่มเติม"}
-                </a>
-              </div>
-            )}
-          </div>
-        ) : (
-          (() => {
-            const isCancel = c.kind === "cancel";
-            const allD = Array.isArray(c.details) ? c.details : [];
-            const priceD = allD.find((d) => d.label === "ราคาเริ่มต้น") ?? null;
-            const restD = priceD ? allD.filter((d) => d !== priceD) : allD;
-            return (
-              <div
-                key={key}
-                className="w-56 shrink-0 overflow-hidden rounded-lg border bg-white text-zinc-900"
-              >
-                {c.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={c.imageUrl}
-                    alt={c.title ?? ""}
-                    className="aspect-[5/3] w-full bg-white object-contain"
-                  />
-                )}
-                <div className="p-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div
-                      className={cn(
-                        "min-w-0 flex-1 truncate font-bold leading-tight",
-                        isCancel && "text-red-600",
-                      )}
-                    >
-                      {c.title}
-                    </div>
-                    {priceD && !isCancel && (
-                      <div className="shrink-0 text-xs font-bold text-brand">
-                        {priceD.value}
-                      </div>
-                    )}
-                  </div>
-                  {c.bodyText && (
-                    <div
-                      className={cn(
-                        "mt-1 text-[11px]",
-                        isCancel
-                          ? "text-red-500 line-through"
-                          : "text-zinc-400",
-                      )}
-                    >
-                      {c.bodyText}
-                    </div>
-                  )}
-                  {restD.length > 0 && (
-                    <>
-                      <div className="my-2 h-px bg-zinc-200" />
-                      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                        {restD.map((d) => (
-                          <div key={d.label}>
-                            <dt className="text-[10px] text-zinc-400">
-                              {d.label}
-                            </dt>
-                            <dd className="text-[11px] font-bold">{d.value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </>
-                  )}
-                </div>
-                {c.ctaUrl && (
-                  <div className="p-3 pt-0">
-                    <a
-                      href={c.ctaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-md bg-[#1f5d3a] py-2 text-center text-xs font-bold text-white"
-                    >
-                      {c.ctaLabel || "ดูเพิ่มเติม"}
-                    </a>
-                  </div>
-                )}
-              </div>
-            );
-          })()
-        );
-
       if (items.length === 0) {
         return <span className="italic opacity-75">[Flex Message]</span>;
       }
-      if (items.length === 1) return renderBubble(items[0]!, 0);
+      if (items.length === 1) return <FlexCard card={items[0]!} size="full" />;
       return (
         <div className="flex max-w-[36rem] gap-1.5 overflow-x-auto pb-1">
-          {items.map((c, i) => renderBubble(c, i, true))}
+          {items.map((c, i) => (
+            <FlexCard key={i} card={c} size="mini" />
+          ))}
         </div>
       );
     }
@@ -1975,6 +1995,34 @@ type Material = {
   longitude?: number | null;
 };
 
+function materialToFlexPayload(m: Material) {
+  // For pin: ensure ctaUrl is a Google Maps link so LINE receives a flex with
+  // "เปิดแผนที่" button instead of a native location message.
+  let ctaUrl = m.ctaUrl;
+  let ctaLabel = m.ctaLabel;
+  if (
+    m.category === "pin" &&
+    !ctaUrl &&
+    typeof m.latitude === "number" &&
+    typeof m.longitude === "number"
+  ) {
+    ctaUrl = `https://www.google.com/maps?q=${m.latitude},${m.longitude}`;
+    ctaLabel = ctaLabel || "เปิดแผนที่";
+  }
+  // For pin: surface the address as bodyText if no explicit subtitle.
+  const bodyText =
+    m.category === "pin" && !m.subtitle && m.address ? m.address : m.subtitle;
+  return {
+    title: m.title,
+    bodyText,
+    imageUrl: m.imageUrl,
+    ctaLabel,
+    ctaUrl,
+    details: m.details,
+    category: m.category,
+  };
+}
+
 const CATEGORY_META: Record<
   MaterialCategory | "all",
   { label: string; Icon: LucideIcon; color: string }
@@ -2037,29 +2085,8 @@ function MaterialTab({
   async function handleSend(m: Material) {
     setSendingId(m.id);
     try {
-      const isPin =
-        m.category === "pin" &&
-        typeof m.latitude === "number" &&
-        typeof m.longitude === "number";
-      const url = isPin
-        ? `/api/admin/inbox/conversations/${detail.conversation.id}/send-location`
-        : `/api/admin/inbox/conversations/${detail.conversation.id}/send-flex`;
-      const payload = isPin
-        ? {
-            title: m.title,
-            address: m.address ?? m.subtitle ?? m.title,
-            latitude: m.latitude,
-            longitude: m.longitude,
-          }
-        : {
-            title: m.title,
-            bodyText: m.subtitle,
-            imageUrl: m.imageUrl,
-            ctaLabel: m.ctaLabel,
-            ctaUrl: m.ctaUrl,
-            details: m.details,
-            category: m.category,
-          };
+      const url = `/api/admin/inbox/conversations/${detail.conversation.id}/send-flex`;
+      const payload = materialToFlexPayload(m);
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2081,59 +2108,19 @@ function MaterialTab({
     setSendingId(`__group__:${groupKey}`);
     const convId = detail.conversation.id;
     try {
-      // Split: pins go as native location messages, others as flex carousel
-      const pinItems = list.filter(
-        (m) =>
-          m.category === "pin" &&
-          typeof m.latitude === "number" &&
-          typeof m.longitude === "number",
+      const items = list.slice(0, 12).map(materialToFlexPayload);
+      const res = await fetch(
+        `/api/admin/inbox/conversations/${convId}/send-flex`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        },
       );
-      const flexItems = list.filter((m) => m.category !== "pin");
-
-      for (const m of pinItems.slice(0, 12)) {
-        const res = await fetch(
-          `/api/admin/inbox/conversations/${convId}/send-location`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: m.title,
-              address: m.address ?? m.subtitle ?? m.title,
-              latitude: m.latitude,
-              longitude: m.longitude,
-            }),
-          },
-        );
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          alert(`ส่งหมุดไม่สำเร็จ: ${err.error ?? JSON.stringify(err)}`);
-          return;
-        }
-      }
-
-      if (flexItems.length > 0) {
-        const items = flexItems.slice(0, 12).map((m) => ({
-          title: m.title,
-          bodyText: m.subtitle,
-          imageUrl: m.imageUrl,
-          ctaLabel: m.ctaLabel,
-          ctaUrl: m.ctaUrl,
-          details: m.details,
-          category: m.category,
-        }));
-        const res = await fetch(
-          `/api/admin/inbox/conversations/${convId}/send-flex`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items }),
-          },
-        );
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          alert(`ส่งไม่สำเร็จ: ${err.error ?? JSON.stringify(err)}`);
-          return;
-        }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`ส่งไม่สำเร็จ: ${err.error ?? JSON.stringify(err)}`);
+        return;
       }
 
       setSelected((prev) => {
@@ -2301,6 +2288,10 @@ function MaterialCard({
   onToggleSelect: () => void;
 }) {
   const { Icon, color } = CATEGORY_META[material.category];
+  const displayTitle =
+    material.category === "pin" && material.title.includes(" — ")
+      ? material.title.split(" — ").slice(1).join(" — ")
+      : material.title;
   const tooltip = material.subtitle
     ? `${material.title} — ${material.subtitle}`
     : material.title;
@@ -2337,10 +2328,10 @@ function MaterialCard({
 
       <div className="border-t bg-card px-1.5 py-1">
         <div
-          className="truncate text-[10px] font-bold leading-tight text-zinc-900"
+          className="line-clamp-2 text-[10px] font-bold leading-tight text-zinc-900"
           title={material.title}
         >
-          {material.title}
+          {displayTitle}
         </div>
       </div>
 
@@ -2392,13 +2383,15 @@ function MaterialCard({
 
 function TimelineTab({ detail }: { detail: ConversationDetail }) {
   const messages = detail.messages;
-  // Newest at top — group by date for readability
+  // Filter: only material (flex) messages — newest at top
   const sorted = useMemo(
     () =>
-      [...messages].sort(
-        (a, b) =>
-          new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
-      ),
+      messages
+        .filter((m) => m.message_type === "flex")
+        .sort(
+          (a, b) =>
+            new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+        ),
     [messages],
   );
 
@@ -2421,7 +2414,7 @@ function TimelineTab({ detail }: { detail: ConversationDetail }) {
     return (
       <ScrollArea className="h-full">
         <div className="p-5 text-center text-xs text-muted-foreground">
-          ยังไม่มีข้อความ
+          ยังไม่มีการส่ง material
         </div>
       </ScrollArea>
     );
@@ -2435,9 +2428,13 @@ function TimelineTab({ detail }: { detail: ConversationDetail }) {
             <div className="mb-2 sticky top-0 z-10 bg-card pb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
               {date}
             </div>
-            <ul className="space-y-1">
-              {msgs.map((m) => (
-                <TimelineRow key={m.id} message={m} />
+            <ul className="space-y-3">
+              {msgs.map((m, i) => (
+                <TimelineRow
+                  key={m.id}
+                  message={m}
+                  isLast={i === msgs.length - 1}
+                />
               ))}
             </ul>
           </section>
@@ -2447,7 +2444,13 @@ function TimelineTab({ detail }: { detail: ConversationDetail }) {
   );
 }
 
-function TimelineRow({ message }: { message: Message }) {
+function TimelineRow({
+  message,
+  isLast,
+}: {
+  message: Message;
+  isLast: boolean;
+}) {
   const isOutbound = message.direction === "outbound";
   const isSystem = message.direction === "system";
   const isNote = message.is_internal_note;
@@ -2475,27 +2478,69 @@ function TimelineRow({ message }: { message: Message }) {
   }
 
   return (
-    <li className="flex gap-2.5">
-      <div className="flex flex-col items-center pt-1">
-        <span className={cn("size-2 shrink-0 rounded-full", dotColor)} />
+    <li className="relative flex gap-3">
+      <div className="relative flex w-2 shrink-0 flex-col items-center pt-1.5">
+        <span
+          className={cn(
+            "relative z-10 size-2 shrink-0 rounded-full ring-2 ring-card",
+            dotColor,
+          )}
+        />
+        {!isLast && (
+          <span
+            aria-hidden
+            className="absolute left-1/2 top-3.5 -bottom-3 w-px -translate-x-1/2 bg-zinc-200"
+          />
+        )}
       </div>
-      <div className="min-w-0 flex-1 pb-2">
+      <div className="min-w-0 flex-1 pb-1">
         <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           <TypeIcon className="size-3" />
           <span>{label}</span>
           <span className="text-zinc-300">·</span>
           <span className="font-bold text-zinc-900 tabular-nums">{time}</span>
         </div>
-        <div
-          className={cn(
-            "mt-0.5 break-words text-xs leading-relaxed",
-            isNote ? "text-amber-700" : "text-zinc-700",
-          )}
-        >
-          {preview}
-        </div>
+        {message.message_type === "flex" ? (
+          <div className="mt-1.5">
+            <TimelineFlex message={message} />
+          </div>
+        ) : (
+          <div
+            className={cn(
+              "mt-0.5 break-words text-xs leading-relaxed",
+              isNote ? "text-amber-700" : "text-zinc-700",
+            )}
+          >
+            {preview}
+          </div>
+        )}
       </div>
     </li>
+  );
+}
+
+function TimelineFlex({ message }: { message: Message }) {
+  const content = message.content as
+    | { type?: "carousel"; items: FlexCardData[] }
+    | FlexCardData;
+  const items =
+    "items" in content && Array.isArray(content.items)
+      ? content.items
+      : "title" in content && content.title
+        ? [content]
+        : [];
+  if (items.length === 0) {
+    return <span className="italic text-xs opacity-75">[Flex Message]</span>;
+  }
+  if (items.length === 1) {
+    return <FlexCard card={items[0]!} size="small" />;
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((c, i) => (
+        <FlexCard key={i} card={c} size="mini" />
+      ))}
+    </div>
   );
 }
 

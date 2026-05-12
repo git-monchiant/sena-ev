@@ -14,6 +14,7 @@ import {
 } from "@/lib/customer-state";
 import { query } from "@/lib/db";
 import { getMessagingClient } from "@/lib/line/client";
+import { withLoadingAnimation } from "@/lib/line/loading";
 import { verifyWebhookSignature } from "@/lib/line/verify";
 import { emitInboxEvent } from "@/lib/sse";
 import { handleInboundMessage } from "@/lib/bot/handle-inbound";
@@ -138,8 +139,8 @@ async function handleEvent(event: webhook.Event) {
 
       // Bot autopilot (best-effort; failures must NOT break webhook)
       if (process.env.BOT_AUTOPILOT_ENABLED !== "false") {
-        try {
-          await handleInboundMessage({
+        const runBot = () =>
+          handleInboundMessage({
             lineUserId: userId,
             customerId: customer.id,
             conversationId: conversation.id,
@@ -147,6 +148,18 @@ async function handleEvent(event: webhook.Event) {
             text:
               messageType === "text" ? (content.text as string) ?? null : null,
           });
+        try {
+          if (messageType === "text") {
+            // Show LINE "typing..." indicator and refresh up to 5×
+            // (5 × 20s = ~100s headroom) while the bot thinks. LINE
+            // auto-dismisses the animation once the reply arrives.
+            await withLoadingAnimation(userId, runBot, {
+              loadingSeconds: 20,
+              maxRounds: 5,
+            });
+          } else {
+            await runBot();
+          }
         } catch (err) {
           console.error("[webhook] bot autopilot failed:", err);
         }
