@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   Car,
+  Clock,
+  Copy,
   FileText,
   Image as ImageIcon,
+  LayoutGrid,
   MapPin,
   MessageSquare,
   MoreVertical,
@@ -13,13 +16,21 @@ import {
   Reply,
   Search,
   Send,
+  Sparkles,
   User,
   Wrench,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +45,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { AddToScheduleDialog } from "./_components/AddToScheduleDialog";
 
 type ConversationListItem = {
   id: string;
@@ -228,36 +240,6 @@ export default function InboxPage() {
     }
   }
 
-  async function handleSendLocation(loc: {
-    title: string;
-    address: string;
-    latitude: number;
-    longitude: number;
-  }) {
-    if (!selectedId) return;
-    setSending(true);
-    try {
-      const res = await fetch(
-        `/api/admin/inbox/conversations/${selectedId}/send-location`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...loc, quotedMessageId: quoted?.id ?? null }),
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`ส่งตำแหน่งไม่สำเร็จ: ${JSON.stringify(err)}`);
-        return;
-      }
-      setQuoted(null);
-      await fetchDetail(selectedId);
-      await fetchList();
-    } finally {
-      setSending(false);
-    }
-  }
-
   const filtered = useMemo(() => {
     if (!search.trim()) return conversations;
     const q = search.toLowerCase();
@@ -269,8 +251,14 @@ export default function InboxPage() {
     );
   }, [conversations, search]);
 
+  const [scheduleDraft, setScheduleDraft] = useState<{
+    customerId: string;
+    customerName: string | null;
+    notes: string;
+  } | null>(null);
+
   return (
-    <div className="grid h-full min-h-0 grid-cols-[300px_800px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)]">
+    <div className="grid h-full min-h-0 grid-cols-[300px_minmax(0,1fr)_500px] grid-rows-[minmax(0,1fr)]">
       <ThreadList
         conversations={filtered}
         selectedId={selectedId}
@@ -287,20 +275,53 @@ export default function InboxPage() {
         sending={sending}
         onSendText={handleSendText}
         onSendImage={handleSendImage}
-        onSendLocation={handleSendLocation}
         quoted={quoted}
         onQuote={setQuoted}
         onClearQuote={() => setQuoted(null)}
         allTags={allTags}
         onTagsChange={() => selectedId && fetchDetail(selectedId)}
+        onAddToSchedule={(message) => {
+          if (!detail) return;
+          setScheduleDraft({
+            customerId: detail.conversation.customer_id,
+            customerName: detail.conversation.customer_display_name,
+            notes: messagePreviewText(message),
+          });
+        }}
       />
       <CustomerPanel
         detail={detail}
         allTags={allTags}
         onTagsChange={() => selectedId && fetchDetail(selectedId)}
+        onMessageSent={async () => {
+          if (!selectedId) return;
+          await fetchDetail(selectedId);
+          await fetchList();
+        }}
       />
+
+      {scheduleDraft && (
+        <AddToScheduleDialog
+          open
+          customerId={scheduleDraft.customerId}
+          customerName={scheduleDraft.customerName}
+          defaultNotes={scheduleDraft.notes}
+          onClose={() => setScheduleDraft(null)}
+          onSaved={() => {
+            setScheduleDraft(null);
+            if (selectedId) fetchDetail(selectedId);
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function messagePreviewText(m: Message): string {
+  if (m.message_type === "text") {
+    return (m.content.text as string) ?? "";
+  }
+  return `[${m.message_type}]`;
 }
 
 /* ─────────────────────── Thread List ─────────────────────── */
@@ -393,6 +414,66 @@ function ThreadList({
   );
 }
 
+function BotToggle({ conversationId }: { conversationId: string }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setEnabled(null);
+    fetch(`/api/admin/inbox/conversations/${conversationId}/bot`, {
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d: { botEnabled?: boolean }) => setEnabled(!!d.botEnabled))
+      .catch(() => setEnabled(false));
+  }, [conversationId]);
+
+  async function toggle() {
+    if (enabled === null) return;
+    const next = !enabled;
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/admin/inbox/conversations/${conversationId}/bot`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ botEnabled: next }),
+        },
+      );
+      if (res.ok) setEnabled(next);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <label
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors",
+        enabled
+          ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+          : "border-zinc-200 bg-zinc-100 text-zinc-500",
+        saving && "opacity-60",
+      )}
+      title={
+        enabled
+          ? "Bot กำลังช่วยตอบ — คลิกเพื่อปิด"
+          : "Bot ปิดอยู่ — คลิกเพื่อเปิดให้ตอบ"
+      }
+    >
+      <input
+        type="checkbox"
+        className="size-3 accent-emerald-500"
+        checked={enabled ?? false}
+        onChange={toggle}
+        disabled={enabled === null || saving}
+      />
+      Bot
+    </label>
+  );
+}
+
 function StateBadge({ state }: { state: string }) {
   const variant: Record<string, string> = {
     OWNER: "bg-purple-100 text-purple-700 border-purple-200",
@@ -455,7 +536,6 @@ function DateSeparator({ date }: { date: string }) {
 
 /* ─────────────────────── Conversation Pane ─────────────────────── */
 
-type ComposerMode = "text" | "image" | "location";
 
 // Tailwind UI standard: underline tabs
 const TAB_LIST_VSCODE = "flex w-full border-b border-border";
@@ -471,12 +551,12 @@ function ConversationPane({
   sending,
   onSendText,
   onSendImage,
-  onSendLocation,
   quoted,
   onQuote,
   onClearQuote,
   allTags,
   onTagsChange,
+  onAddToSchedule,
 }: {
   detail: ConversationDetail | null;
   text: string;
@@ -486,20 +566,42 @@ function ConversationPane({
   sending: boolean;
   onSendText: () => void;
   onSendImage: (file: File) => void;
-  onSendLocation: (loc: {
-    title: string;
-    address: string;
-    latitude: number;
-    longitude: number;
-  }) => void;
   quoted: QuotedDraft | null;
   onQuote: (q: QuotedDraft) => void;
   onClearQuote: () => void;
   allTags: Tag[];
   onTagsChange: () => void;
+  onAddToSchedule: (message: Message) => void;
 }) {
-  const [mode, setMode] = useState<ComposerMode>("text");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [msgMenu, setMsgMenu] = useState<{
+    x: number;
+    y: number;
+    message: Message;
+  } | null>(null);
+
+  const closeMenu = useCallback(() => setMsgMenu(null), []);
+
+  const openMenuFor = useCallback((message: Message, x: number, y: number) => {
+    setMsgMenu({ x, y, message });
+  }, []);
+
+  function quotePreviewFor(m: Message): string {
+    if (m.message_type === "text") {
+      return (m.content.text as string)?.slice(0, 100) ?? "[ข้อความ]";
+    }
+    return `[${m.message_type}]`;
+  }
+
+  async function copyMessage(m: Message) {
+    if (m.message_type !== "text") return;
+    const t = (m.content.text as string) ?? "";
+    try {
+      await navigator.clipboard.writeText(t);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -552,6 +654,7 @@ function ConversationPane({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <BotToggle conversationId={conversation.id} />
             <StateBadge state={conversation.customer_state} />
             <Badge variant="secondary" className="px-1.5 py-0 text-[10px] leading-none">
               {conversation.status}
@@ -610,6 +713,7 @@ function ConversationPane({
                         direction: m.direction,
                       })
                     }
+                    onOpenMenu={openMenuFor}
                   />
                 </div>
               </div>
@@ -641,291 +745,283 @@ function ConversationPane({
           </div>
         )}
 
-        <Tabs value={mode} onValueChange={(v) => setMode(v as ComposerMode)}>
-          <div className="px-2">
-            <TabsList className={TAB_LIST_VSCODE}>
-              <TabsTrigger value="text" className={TAB_TRIGGER_VSCODE}>
-                <MessageSquare className="size-3.5" />
-                ข้อความ
-              </TabsTrigger>
-              <TabsTrigger value="image" className={TAB_TRIGGER_VSCODE}>
-                <ImageIcon className="size-3.5" />
-                รูป
-              </TabsTrigger>
-              <TabsTrigger value="location" className={TAB_TRIGGER_VSCODE}>
-                <MapPin className="size-3.5" />
-                ตำแหน่ง
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <div className="min-h-[190px] p-4">
-            <TabsContent value="text" className="mt-0">
-              <TextComposer
-                text={text}
-                onTextChange={onTextChange}
-                internalNote={internalNote}
-                onToggleNote={onToggleNote}
-                sending={sending}
-                onSend={onSendText}
-              />
-            </TabsContent>
-            <TabsContent value="image" className="mt-0">
-              <ImageComposer sending={sending} onSend={onSendImage} />
-            </TabsContent>
-            <TabsContent value="location" className="mt-0">
-              <LocationComposer sending={sending} onSend={onSendLocation} />
-            </TabsContent>
-          </div>
-        </Tabs>
+        <UnifiedComposer
+          text={text}
+          onTextChange={onTextChange}
+          internalNote={internalNote}
+          onToggleNote={onToggleNote}
+          sending={sending}
+          onSendText={onSendText}
+          onSendImage={onSendImage}
+        />
       </div>
+
+      {msgMenu && (
+        <ContextMenu
+          x={msgMenu.x}
+          y={msgMenu.y}
+          open
+          onClose={closeMenu}
+        >
+          <ContextMenuLabel>
+            {msgMenu.message.direction === "inbound"
+              ? "ข้อความจากลูกค้า"
+              : msgMenu.message.direction === "outbound"
+                ? "ข้อความจากเรา"
+                : "ข้อความระบบ"}
+          </ContextMenuLabel>
+          <ContextMenuItem
+            onSelect={() => {
+              onQuote({
+                id: msgMenu.message.id,
+                preview: quotePreviewFor(msgMenu.message),
+                direction: msgMenu.message.direction,
+              });
+              closeMenu();
+            }}
+          >
+            <Reply className="size-4" />
+            ตอบกลับ
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={msgMenu.message.message_type !== "text"}
+            onSelect={() => {
+              void copyMessage(msgMenu.message);
+              closeMenu();
+            }}
+          >
+            <Copy className="size-4" />
+            คัดลอกข้อความ
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onSelect={() => {
+              onAddToSchedule(msgMenu.message);
+              closeMenu();
+            }}
+          >
+            <CalendarDays className="size-4" />
+            เพิ่มในตารางงาน
+          </ContextMenuItem>
+        </ContextMenu>
+      )}
     </section>
   );
 }
 
-/* ─────────────────────── Composers ─────────────────────── */
+/* ─────────────────────── Composer ─────────────────────── */
 
-function TextComposer({
+type Attachment = { file: File; url: string };
+
+function UnifiedComposer({
   text,
   onTextChange,
   internalNote,
   onToggleNote,
   sending,
-  onSend,
+  onSendText,
+  onSendImage,
 }: {
   text: string;
   onTextChange: (t: string) => void;
   internalNote: boolean;
   onToggleNote: (v: boolean) => void;
   sending: boolean;
-  onSend: () => void;
+  onSendText: () => void;
+  onSendImage: (file: File) => void;
 }) {
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function addFiles(incoming: File[]) {
+    const images = incoming.filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0) return;
+    setAttachments((prev) => [
+      ...prev,
+      ...images.map((f) => ({ file: f, url: URL.createObjectURL(f) })),
+    ]);
+  }
+
+  function removeAt(idx: number) {
+    setAttachments((prev) => {
+      const target = prev[idx];
+      if (target) URL.revokeObjectURL(target.url);
+      return prev.filter((_, i) => i !== idx);
+    });
+  }
+
+  function clearAll() {
+    attachments.forEach((a) => URL.revokeObjectURL(a.url));
+    setAttachments([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleSend() {
+    if (sending) return;
+    const files = attachments.map((a) => a.file);
+    const hasText = text.trim().length > 0;
+    if (files.length === 0 && !hasText) return;
+
+    files.forEach((f) => onSendImage(f));
+    if (hasText) onSendText();
+    clearAll();
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imgs: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item && item.type.startsWith("image/")) {
+        const f = item.getAsFile();
+        if (f) imgs.push(f);
+      }
+    }
+    if (imgs.length > 0) {
+      e.preventDefault();
+      addFiles(imgs);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = Array.from(e.dataTransfer?.files ?? []);
+    addFiles(dropped);
+  }
+
+  const hasFiles = attachments.length > 0;
+  const canSend = !sending && (text.trim().length > 0 || hasFiles);
+  const sendLabel = sending
+    ? "กำลังส่ง..."
+    : hasFiles
+      ? text.trim()
+        ? `ส่ง (${attachments.length} รูป + ข้อความ)`
+        : `ส่งรูป (${attachments.length})`
+      : internalNote
+        ? "บันทึก"
+        : "ส่ง";
+
   return (
-    <div className="space-y-2">
-      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={internalNote}
-          onChange={(e) => onToggleNote(e.target.checked)}
-          className="size-3"
-        />
-        Internal note (agent เท่านั้น)
-      </label>
+    <div
+      className={cn(
+        "relative space-y-2 p-3 transition-colors",
+        dragOver && "bg-accent/30 ring-2 ring-inset ring-primary",
+      )}
+      onDragEnter={(e) => {
+        if (e.dataTransfer?.types.includes("Files")) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+      }}
+      onDragLeave={(e) => {
+        if (e.target === e.currentTarget) setDragOver(false);
+      }}
+      onDrop={handleDrop}
+    >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/80 text-sm font-medium text-primary">
+          วางรูปที่นี่เพื่อแนบ
+        </div>
+      )}
+
+      {hasFiles && (
+        <div className="flex flex-wrap gap-2 rounded-md border bg-muted/30 p-2">
+          {attachments.map((a, idx) => (
+            <div key={a.url} className="group relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={a.url}
+                alt={a.file.name}
+                title={a.file.name}
+                className="size-14 rounded border object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removeAt(idx)}
+                className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:text-foreground"
+                aria-label="ลบรูปนี้"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex gap-2">
         <Textarea
           value={text}
           onChange={(e) => onTextChange(e.target.value)}
+          onPaste={handlePaste}
           placeholder={
             internalNote
               ? "บันทึกภายใน (ไม่ส่งหา user)..."
-              : "พิมพ์ข้อความตอบลูกค้า..."
+              : hasFiles
+                ? "เพิ่มคำบรรยาย (ไม่บังคับ)…"
+                : "พิมพ์ข้อความตอบลูกค้า..."
           }
           rows={2}
           className="resize-none"
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
-              onSend();
+              handleSend();
             }
           }}
         />
         <Button
           type="button"
-          onClick={onSend}
-          disabled={sending || !text.trim()}
+          onClick={handleSend}
+          disabled={!canSend}
           className={cn(
             "self-end",
-            internalNote && "bg-amber-600 hover:bg-amber-700",
+            internalNote && !hasFiles && "bg-amber-600 hover:bg-amber-700",
           )}
         >
           <Send className="size-4" />
-          {sending ? "กำลังส่ง..." : internalNote ? "บันทึก" : "ส่ง"}
+          {sendLabel}
         </Button>
       </div>
-      <p className="text-[10px] text-muted-foreground">
-        กด ⌘/Ctrl+Enter เพื่อส่ง
-      </p>
-    </div>
-  );
-}
 
-function ImageComposer({
-  sending,
-  onSend,
-}: {
-  sending: boolean;
-  onSend: (file: File) => void;
-}) {
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(URL.createObjectURL(f));
-  }
-
-  function reset() {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setFile(null);
-    setPreviewUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  function handleSend() {
-    if (!file) return;
-    onSend(file);
-    reset();
-  }
-
-  if (!file) {
-    return (
-      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed bg-muted/30 p-8 text-sm text-muted-foreground transition-colors hover:bg-accent">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1 hover:text-foreground"
+          >
+            <ImageIcon className="size-3.5" />
+            แนบรูป
+          </button>
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={internalNote}
+              onChange={(e) => onToggleNote(e.target.checked)}
+              className="size-3"
+            />
+            Internal note
+          </label>
+        </div>
+        <span>วาง/ลากรูปลงได้ · ⌘/Ctrl+Enter เพื่อส่ง</span>
         <input
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          onChange={handleFileChange}
+          multiple
+          onChange={(e) => {
+            const list = Array.from(e.target.files ?? []);
+            addFiles(list);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+          }}
           className="hidden"
         />
-        <ImageIcon className="size-6" />
-        <span>คลิกเพื่อเลือกรูป (JPG/PNG/WebP, max 10MB)</span>
-      </label>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="relative inline-block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={previewUrl ?? ""}
-          alt="preview"
-          className="max-h-48 max-w-full rounded border"
-        />
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon"
-          onClick={reset}
-          className="absolute -right-2 -top-2 size-6 rounded-full"
-        >
-          <X className="size-3" />
-        </Button>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1 text-xs text-muted-foreground">
-          {file.name} · {Math.round(file.size / 1024)} KB
-        </div>
-        <Button type="button" onClick={handleSend} disabled={sending}>
-          <Send className="size-4" />
-          {sending ? "กำลังส่ง..." : "ส่งรูป"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-const PRESET_LOCATIONS = [
-  {
-    title: "Sena EV — โชว์รูม Bangna",
-    address: "Bangna-Trat Road, Bangkok",
-    latitude: 13.6747,
-    longitude: 100.6071,
-  },
-];
-
-function LocationComposer({
-  sending,
-  onSend,
-}: {
-  sending: boolean;
-  onSend: (loc: {
-    title: string;
-    address: string;
-    latitude: number;
-    longitude: number;
-  }) => void;
-}) {
-  const [title, setTitle] = useState("");
-  const [address, setAddress] = useState("");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-
-  function applyPreset(p: (typeof PRESET_LOCATIONS)[number]) {
-    setTitle(p.title);
-    setAddress(p.address);
-    setLat(String(p.latitude));
-    setLng(String(p.longitude));
-  }
-
-  function handleSend() {
-    const latitude = parseFloat(lat);
-    const longitude = parseFloat(lng);
-    if (!title.trim() || !address.trim() || Number.isNaN(latitude) || Number.isNaN(longitude)) {
-      alert("กรอกข้อมูลให้ครบ");
-      return;
-    }
-    onSend({ title: title.trim(), address: address.trim(), latitude, longitude });
-    setTitle("");
-    setAddress("");
-    setLat("");
-    setLng("");
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-1">
-        {PRESET_LOCATIONS.map((p) => (
-          <Button
-            key={p.title}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-6 rounded-full text-xs"
-            onClick={() => applyPreset(p)}
-          >
-            <MapPin className="size-3" />
-            {p.title}
-          </Button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="ชื่อสถานที่"
-          className="col-span-2"
-        />
-        <Input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="ที่อยู่"
-          className="col-span-2"
-        />
-        <Input
-          type="number"
-          step="any"
-          value={lat}
-          onChange={(e) => setLat(e.target.value)}
-          placeholder="Latitude"
-        />
-        <Input
-          type="number"
-          step="any"
-          value={lng}
-          onChange={(e) => setLng(e.target.value)}
-          placeholder="Longitude"
-        />
-      </div>
-      <div className="flex justify-end">
-        <Button type="button" onClick={handleSend} disabled={sending}>
-          <Send className="size-4" />
-          {sending ? "กำลังส่ง..." : "ส่งตำแหน่ง"}
-        </Button>
       </div>
     </div>
   );
@@ -940,6 +1036,7 @@ function MessageBubble({
   customerName,
   customerPicture,
   onQuote,
+  onOpenMenu,
 }: {
   message: Message;
   isFirstInGroup: boolean;
@@ -947,7 +1044,33 @@ function MessageBubble({
   customerName: string | null;
   customerPicture: string | null;
   onQuote: (preview: string) => void;
+  onOpenMenu: (message: Message, x: number, y: number) => void;
 }) {
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleContextMenu(e: React.MouseEvent) {
+    if (message.is_internal_note) return;
+    e.preventDefault();
+    onOpenMenu(message, e.clientX, e.clientY);
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (message.is_internal_note) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const { clientX, clientY } = t;
+    longPressTimer.current = setTimeout(() => {
+      onOpenMenu(message, clientX, clientY);
+    }, 450);
+  }
+
+  function clearLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
   if (message.is_internal_note) {
     return (
       <div className="mx-auto max-w-xl rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -1014,8 +1137,13 @@ function MessageBubble({
           </span>
         )}
         <div
+          onContextMenu={handleContextMenu}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={clearLongPress}
+          onTouchMove={clearLongPress}
+          onTouchCancel={clearLongPress}
           className={cn(
-            "relative w-fit max-w-full overflow-hidden shadow-sm",
+            "relative w-fit max-w-full cursor-context-menu overflow-hidden shadow-sm",
             isMedia
               ? "max-w-[200px] p-4"
               : "px-5 py-3 text-sm leading-relaxed",
@@ -1388,8 +1516,231 @@ function MessageContent({ message }: { message: Message }) {
       );
     }
 
-    case "flex":
-      return <span className="italic opacity-75">[Flex Message]</span>;
+    case "flex": {
+      type FlexCardData = {
+        title?: string;
+        bodyText?: string | null;
+        imageUrl?: string | null;
+        ctaLabel?: string | null;
+        ctaUrl?: string | null;
+        details?: { label: string; value: string }[];
+        category?: string | null;
+        kind?: string | null;
+      };
+      const content = message.content as
+        | { type?: "carousel"; items: FlexCardData[] }
+        | FlexCardData;
+
+      const items =
+        "items" in content && Array.isArray(content.items)
+          ? content.items
+          : "title" in content && content.title
+            ? [content]
+            : [];
+
+      const renderPin = (
+        c: {
+          title?: string;
+          bodyText?: string | null;
+          ctaLabel?: string | null;
+          ctaUrl?: string | null;
+        },
+        key: number | string,
+      ) => (
+        <a
+          key={key}
+          href={c.ctaUrl ?? "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-64 shrink-0 items-start gap-2.5 rounded-lg border bg-white p-2.5 text-zinc-900"
+        >
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-50">
+            <MapPin
+              className="size-4 text-emerald-600"
+              strokeWidth={2.5}
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold leading-tight">
+              {c.title}
+            </div>
+            {c.bodyText && (
+              <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+                {c.bodyText}
+              </div>
+            )}
+            {c.ctaUrl && (
+              <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-700">
+                {c.ctaLabel || "เปิดแผนที่"} →
+              </div>
+            )}
+          </div>
+        </a>
+      );
+
+      const renderBubble = (
+        c: {
+          title?: string;
+          bodyText?: string | null;
+          imageUrl?: string | null;
+          ctaLabel?: string | null;
+          ctaUrl?: string | null;
+          details?: { label: string; value: string }[];
+          category?: string | null;
+          kind?: string | null;
+        },
+        key: number | string,
+        compact = false,
+      ) => {
+        if (c.category === "pin") return renderPin(c, key);
+        return COMPACT_OR_FULL(c, key, compact);
+      };
+
+      const COMPACT_OR_FULL = (
+        c: {
+          title?: string;
+          bodyText?: string | null;
+          imageUrl?: string | null;
+          ctaLabel?: string | null;
+          ctaUrl?: string | null;
+          details?: { label: string; value: string }[];
+          kind?: string | null;
+        },
+        key: number | string,
+        compact: boolean,
+      ) =>
+        compact ? (
+          <div
+            key={key}
+            className="w-28 shrink-0 overflow-hidden rounded border bg-white text-zinc-900"
+          >
+            {c.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={c.imageUrl}
+                alt={c.title ?? ""}
+                className="aspect-[5/3] w-full bg-white object-contain"
+              />
+            ) : (
+              <div className="aspect-[5/3] w-full bg-zinc-100" />
+            )}
+            <div className="px-1.5 py-1">
+              <div className="truncate text-[10px] font-bold leading-tight">
+                {c.title}
+              </div>
+              {Array.isArray(c.details) &&
+                c.details.slice(0, 2).map((d) => (
+                  <div
+                    key={d.label}
+                    className="mt-0.5 truncate text-[9px] text-zinc-500"
+                  >
+                    {d.label} <span className="font-bold text-zinc-900">{d.value}</span>
+                  </div>
+                ))}
+            </div>
+            {c.ctaUrl && (
+              <div className="px-1.5 pb-1.5">
+                <a
+                  href={c.ctaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block truncate rounded bg-[#1f5d3a] px-1 py-1 text-center text-[9px] font-bold text-white"
+                >
+                  {c.ctaLabel || "ดูเพิ่มเติม"}
+                </a>
+              </div>
+            )}
+          </div>
+        ) : (
+          (() => {
+            const isCancel = c.kind === "cancel";
+            const allD = Array.isArray(c.details) ? c.details : [];
+            const priceD = allD.find((d) => d.label === "ราคาเริ่มต้น") ?? null;
+            const restD = priceD ? allD.filter((d) => d !== priceD) : allD;
+            return (
+              <div
+                key={key}
+                className="w-56 shrink-0 overflow-hidden rounded-lg border bg-white text-zinc-900"
+              >
+                {c.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={c.imageUrl}
+                    alt={c.title ?? ""}
+                    className="aspect-[5/3] w-full bg-white object-contain"
+                  />
+                )}
+                <div className="p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div
+                      className={cn(
+                        "min-w-0 flex-1 truncate font-bold leading-tight",
+                        isCancel && "text-red-600",
+                      )}
+                    >
+                      {c.title}
+                    </div>
+                    {priceD && !isCancel && (
+                      <div className="shrink-0 text-xs font-bold text-brand">
+                        {priceD.value}
+                      </div>
+                    )}
+                  </div>
+                  {c.bodyText && (
+                    <div
+                      className={cn(
+                        "mt-1 text-[11px]",
+                        isCancel
+                          ? "text-red-500 line-through"
+                          : "text-zinc-400",
+                      )}
+                    >
+                      {c.bodyText}
+                    </div>
+                  )}
+                  {restD.length > 0 && (
+                    <>
+                      <div className="my-2 h-px bg-zinc-200" />
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                        {restD.map((d) => (
+                          <div key={d.label}>
+                            <dt className="text-[10px] text-zinc-400">
+                              {d.label}
+                            </dt>
+                            <dd className="text-[11px] font-bold">{d.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </>
+                  )}
+                </div>
+                {c.ctaUrl && (
+                  <div className="p-3 pt-0">
+                    <a
+                      href={c.ctaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-md bg-[#1f5d3a] py-2 text-center text-xs font-bold text-white"
+                    >
+                      {c.ctaLabel || "ดูเพิ่มเติม"}
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        );
+
+      if (items.length === 0) {
+        return <span className="italic opacity-75">[Flex Message]</span>;
+      }
+      if (items.length === 1) return renderBubble(items[0]!, 0);
+      return (
+        <div className="flex max-w-[36rem] gap-1.5 overflow-x-auto pb-1">
+          {items.map((c, i) => renderBubble(c, i, true))}
+        </div>
+      );
+    }
 
     default:
       return (
@@ -1404,10 +1755,12 @@ function CustomerPanel({
   detail,
   allTags,
   onTagsChange,
+  onMessageSent,
 }: {
   detail: ConversationDetail | null;
   allTags: Tag[];
   onTagsChange: () => void;
+  onMessageSent: () => void | Promise<void>;
 }) {
   if (!detail) {
     return <aside className="border-l bg-card" />;
@@ -1419,8 +1772,14 @@ function CustomerPanel({
           <TabsTrigger value="profile" className={TAB_TRIGGER_VSCODE}>
             <User className="size-3.5" /> โปรไฟล์
           </TabsTrigger>
+          <TabsTrigger value="timeline" className={TAB_TRIGGER_VSCODE}>
+            <Clock className="size-3.5" /> Timeline
+          </TabsTrigger>
           <TabsTrigger value="calendar" className={TAB_TRIGGER_VSCODE}>
             <CalendarDays className="size-3.5" /> นัดหมาย
+          </TabsTrigger>
+          <TabsTrigger value="material" className={TAB_TRIGGER_VSCODE}>
+            <FileText className="size-3.5" /> Material
           </TabsTrigger>
         </TabsList>
         <TabsContent value="profile" className="min-h-0 flex-1 overflow-hidden">
@@ -1430,8 +1789,14 @@ function CustomerPanel({
             onTagsChange={onTagsChange}
           />
         </TabsContent>
+        <TabsContent value="timeline" className="min-h-0 flex-1 overflow-hidden">
+          <TimelineTab detail={detail} />
+        </TabsContent>
         <TabsContent value="calendar" className="min-h-0 flex-1 overflow-hidden">
           <CalendarTab detail={detail} />
+        </TabsContent>
+        <TabsContent value="material" className="min-h-0 flex-1 overflow-hidden">
+          <MaterialTab detail={detail} onSent={onMessageSent} />
         </TabsContent>
       </Tabs>
     </aside>
@@ -1593,6 +1958,588 @@ type CalendarEvent = {
 type CalendarView = "month" | "list";
 
 const MONTHS_TO_SHOW = 12;
+
+type MaterialCategory = "car" | "promo" | "pin";
+
+type Material = {
+  id: string;
+  category: MaterialCategory;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  ctaLabel: string | null;
+  ctaUrl: string | null;
+  details: { label: string; value: string }[];
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+const CATEGORY_META: Record<
+  MaterialCategory | "all",
+  { label: string; Icon: LucideIcon; color: string }
+> = {
+  all: { label: "ทั้งหมด", Icon: LayoutGrid, color: "text-zinc-500" },
+  car: { label: "รถ", Icon: Car, color: "text-blue-600" },
+  promo: { label: "โปรโมชั่น", Icon: Sparkles, color: "text-amber-600" },
+  pin: { label: "ที่ตั้ง", Icon: MapPin, color: "text-emerald-600" },
+};
+
+function MaterialTab({
+  detail,
+  onSent,
+}: {
+  detail: ConversationDetail;
+  onSent: () => void | Promise<void>;
+}) {
+  const [items, setItems] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [activeCat, setActiveCat] = useState<MaterialCategory | "all">("all");
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    fetch("/api/admin/materials")
+      .then((r) => r.json())
+      .then((d: { items: Material[] }) => setItems(d.items ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((m) => {
+      if (activeCat !== "all" && m.category !== activeCat) return false;
+      if (!q) return true;
+      return (
+        m.title.toLowerCase().includes(q) ||
+        (m.subtitle?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [items, search, activeCat]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: items.length };
+    for (const m of items) c[m.category] = (c[m.category] ?? 0) + 1;
+    return c;
+  }, [items]);
+
+  async function handleSend(m: Material) {
+    setSendingId(m.id);
+    try {
+      const isPin =
+        m.category === "pin" &&
+        typeof m.latitude === "number" &&
+        typeof m.longitude === "number";
+      const url = isPin
+        ? `/api/admin/inbox/conversations/${detail.conversation.id}/send-location`
+        : `/api/admin/inbox/conversations/${detail.conversation.id}/send-flex`;
+      const payload = isPin
+        ? {
+            title: m.title,
+            address: m.address ?? m.subtitle ?? m.title,
+            latitude: m.latitude,
+            longitude: m.longitude,
+          }
+        : {
+            title: m.title,
+            bodyText: m.subtitle,
+            imageUrl: m.imageUrl,
+            ctaLabel: m.ctaLabel,
+            ctaUrl: m.ctaUrl,
+            details: m.details,
+            category: m.category,
+          };
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`ส่งไม่สำเร็จ: ${err.error ?? JSON.stringify(err)}`);
+        return;
+      }
+      await onSent();
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  async function handleSendGroup(list: Material[], groupKey: string) {
+    if (list.length === 0) return;
+    setSendingId(`__group__:${groupKey}`);
+    const convId = detail.conversation.id;
+    try {
+      // Split: pins go as native location messages, others as flex carousel
+      const pinItems = list.filter(
+        (m) =>
+          m.category === "pin" &&
+          typeof m.latitude === "number" &&
+          typeof m.longitude === "number",
+      );
+      const flexItems = list.filter((m) => m.category !== "pin");
+
+      for (const m of pinItems.slice(0, 12)) {
+        const res = await fetch(
+          `/api/admin/inbox/conversations/${convId}/send-location`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: m.title,
+              address: m.address ?? m.subtitle ?? m.title,
+              latitude: m.latitude,
+              longitude: m.longitude,
+            }),
+          },
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`ส่งหมุดไม่สำเร็จ: ${err.error ?? JSON.stringify(err)}`);
+          return;
+        }
+      }
+
+      if (flexItems.length > 0) {
+        const items = flexItems.slice(0, 12).map((m) => ({
+          title: m.title,
+          bodyText: m.subtitle,
+          imageUrl: m.imageUrl,
+          ctaLabel: m.ctaLabel,
+          ctaUrl: m.ctaUrl,
+          details: m.details,
+          category: m.category,
+        }));
+        const res = await fetch(
+          `/api/admin/inbox/conversations/${convId}/send-flex`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items }),
+          },
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(`ส่งไม่สำเร็จ: ${err.error ?? JSON.stringify(err)}`);
+          return;
+        }
+      }
+
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const m of list) next.delete(m.id);
+        return next;
+      });
+      await onSent();
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  const groups = useMemo(() => {
+    const order: MaterialCategory[] = ["car", "promo", "pin"];
+    const grouped: Record<MaterialCategory, Material[]> = {
+      car: [],
+      promo: [],
+      pin: [],
+    };
+    for (const m of filtered) grouped[m.category].push(m);
+    return order
+      .map((cat) => ({ cat, items: grouped[cat] }))
+      .filter((g) => g.items.length > 0);
+  }, [filtered]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="space-y-2 border-b p-3">
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="ค้นหา material…"
+          className="h-8"
+        />
+        <div className="flex flex-wrap gap-1">
+          {(["all", "car", "promo", "pin"] as const).map((cat) => {
+            const { label, Icon } = CATEGORY_META[cat];
+            const active = activeCat === cat;
+            const n = counts[cat] ?? 0;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveCat(cat)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  active
+                    ? "border-zinc-900 bg-zinc-900 text-white"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                )}
+              >
+                <Icon className="size-3" />
+                {label}
+                <span className="opacity-70">· {n}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="p-3">
+          {loading && (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              กำลังโหลด…
+            </div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              ไม่มี material ตรงเงื่อนไข
+            </div>
+          )}
+          {!loading && filtered.length > 0 && (
+            <div className="space-y-4">
+              {groups.map(({ cat, items }) => {
+                const meta = CATEGORY_META[cat];
+                const groupKey = `__group__:${cat}`;
+                const groupSending = sendingId === groupKey;
+                const selectedItems = items.filter((m) => selected.has(m.id));
+                const hasSelection = selectedItems.length > 0;
+                const targetItems = hasSelection ? selectedItems : items;
+                return (
+                  <section key={cat}>
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-600">
+                        <meta.Icon className={cn("size-3.5", meta.color)} />
+                        {meta.label}
+                        <span className="font-medium text-muted-foreground">
+                          · {items.length}
+                          {hasSelection && (
+                            <span className="ml-1 font-bold text-zinc-900">
+                              ({selectedItems.length} เลือก)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {hasSelection && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelected((prev) => {
+                                const next = new Set(prev);
+                                for (const m of items) next.delete(m.id);
+                                return next;
+                              })
+                            }
+                            className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                          >
+                            ยกเลิก
+                          </button>
+                        )}
+                        {targetItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleSendGroup(targetItems, cat)}
+                            disabled={groupSending}
+                            className="inline-flex items-center gap-1 rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                          >
+                            <Send className="size-2.5" />
+                            {groupSending
+                              ? "กำลังส่ง…"
+                              : hasSelection
+                                ? `ส่งที่เลือก (${Math.min(selectedItems.length, 12)})`
+                                : `ส่งทั้งหมด (${Math.min(items.length, 12)})`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-1.5">
+                      {items.map((m) => (
+                        <MaterialCard
+                          key={m.id}
+                          material={m}
+                          sending={sendingId === m.id}
+                          selected={selected.has(m.id)}
+                          onToggleSelect={() => toggleSelected(m.id)}
+                          onSend={() => handleSend(m)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+function MaterialCard({
+  material,
+  sending,
+  selected,
+  onSend,
+  onToggleSelect,
+}: {
+  material: Material;
+  sending: boolean;
+  selected: boolean;
+  onSend: () => void;
+  onToggleSelect: () => void;
+}) {
+  const { Icon, color } = CATEGORY_META[material.category];
+  const tooltip = material.subtitle
+    ? `${material.title} — ${material.subtitle}`
+    : material.title;
+  return (
+    <div
+      className={cn(
+        "group relative flex flex-col overflow-hidden rounded border bg-muted transition-colors",
+        selected
+          ? "border-2 border-zinc-900 ring-2 ring-zinc-900/20"
+          : "hover:border-zinc-900",
+        sending && "opacity-50",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onSend}
+        disabled={sending}
+        title={tooltip}
+        className="relative block aspect-square w-full text-left"
+      >
+        {material.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={material.imageUrl}
+            alt={material.title}
+            className="size-full bg-white object-contain"
+          />
+        ) : (
+          <div className="flex size-full flex-col items-center justify-center px-1">
+            <Icon className={cn("size-4", color)} />
+          </div>
+        )}
+      </button>
+
+      <div className="border-t bg-card px-1.5 py-1">
+        <div
+          className="truncate text-[10px] font-bold leading-tight text-zinc-900"
+          title={material.title}
+        >
+          {material.title}
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute right-0.5 top-0.5 flex size-3.5 items-center justify-center rounded bg-white/90 shadow-sm">
+        <Icon className={cn("size-2", color)} />
+      </div>
+
+      {material.category === "car" && (
+        <button
+          type="button"
+          onClick={onToggleSelect}
+          aria-label={selected ? "ยกเลิกการเลือก" : "เลือก"}
+          title={selected ? "ยกเลิกการเลือก" : "เลือกเพื่อส่งรวม"}
+          className={cn(
+            "absolute left-1 top-1 flex size-4 items-center justify-center rounded-full border shadow-sm transition-colors",
+            selected
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 bg-white/90 text-transparent hover:border-zinc-900 hover:text-zinc-400",
+          )}
+        >
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            className="size-2.5"
+            aria-hidden="true"
+          >
+            <path
+              d="M3 8.5l3 3 7-7"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      )}
+
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-zinc-900/75 opacity-0 transition-opacity group-hover:opacity-100">
+        <Send className="size-3.5 text-white" />
+      </div>
+      {sending && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-zinc-900/75 text-[8px] font-medium text-white">
+          กำลังส่ง…
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineTab({ detail }: { detail: ConversationDetail }) {
+  const messages = detail.messages;
+  // Newest at top — group by date for readability
+  const sorted = useMemo(
+    () =>
+      [...messages].sort(
+        (a, b) =>
+          new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+      ),
+    [messages],
+  );
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, Message[]>();
+    for (const m of sorted) {
+      const d = new Date(m.sent_at);
+      const key = d.toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "short",
+        year: "2-digit",
+      });
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    }
+    return Array.from(map.entries());
+  }, [sorted]);
+
+  if (sorted.length === 0) {
+    return (
+      <ScrollArea className="h-full">
+        <div className="p-5 text-center text-xs text-muted-foreground">
+          ยังไม่มีข้อความ
+        </div>
+      </ScrollArea>
+    );
+  }
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="space-y-5 p-3">
+        {grouped.map(([date, msgs]) => (
+          <section key={date}>
+            <div className="mb-2 sticky top-0 z-10 bg-card pb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+              {date}
+            </div>
+            <ul className="space-y-1">
+              {msgs.map((m) => (
+                <TimelineRow key={m.id} message={m} />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </ScrollArea>
+  );
+}
+
+function TimelineRow({ message }: { message: Message }) {
+  const isOutbound = message.direction === "outbound";
+  const isSystem = message.direction === "system";
+  const isNote = message.is_internal_note;
+  const time = new Date(message.sent_at).toLocaleTimeString("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const preview = timelinePreview(message);
+  const TypeIcon = getTypeIcon(message.message_type);
+
+  let label: string;
+  let dotColor: string;
+  if (isNote) {
+    label = "Note";
+    dotColor = "bg-amber-400";
+  } else if (isSystem) {
+    label = "System";
+    dotColor = "bg-zinc-400";
+  } else if (isOutbound) {
+    label = "Agent";
+    dotColor = "bg-emerald-500";
+  } else {
+    label = "Customer";
+    dotColor = "bg-blue-500";
+  }
+
+  return (
+    <li className="flex gap-2.5">
+      <div className="flex flex-col items-center pt-1">
+        <span className={cn("size-2 shrink-0 rounded-full", dotColor)} />
+      </div>
+      <div className="min-w-0 flex-1 pb-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <TypeIcon className="size-3" />
+          <span>{label}</span>
+          <span className="text-zinc-300">·</span>
+          <span className="font-bold text-zinc-900 tabular-nums">{time}</span>
+        </div>
+        <div
+          className={cn(
+            "mt-0.5 break-words text-xs leading-relaxed",
+            isNote ? "text-amber-700" : "text-zinc-700",
+          )}
+        >
+          {preview}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function getTypeIcon(type: string): LucideIcon {
+  switch (type) {
+    case "image":
+    case "video":
+    case "sticker":
+      return ImageIcon;
+    case "location":
+      return MapPin;
+    case "flex":
+      return FileText;
+    default:
+      return MessageSquare;
+  }
+}
+
+function timelinePreview(m: Message): string {
+  if (m.is_internal_note) {
+    return (m.content.text as string) ?? "[note]";
+  }
+  switch (m.message_type) {
+    case "text":
+      return (m.content.text as string) ?? "";
+    case "image":
+      return "📷 รูปภาพ";
+    case "video":
+      return "🎬 วิดีโอ";
+    case "sticker":
+      return "🎉 สติกเกอร์";
+    case "location":
+      return `📍 ${(m.content.title as string) ?? "ตำแหน่ง"}`;
+    case "flex": {
+      const c = m.content as { title?: string; items?: { title?: string }[] };
+      if (Array.isArray(c.items) && c.items.length > 0) {
+        return `🎴 ${c.items.length} รายการ — ${c.items[0]?.title ?? ""}`;
+      }
+      return `🎴 ${c.title ?? "Flex Message"}`;
+    }
+    default:
+      return `[${m.message_type}]`;
+  }
+}
 
 function CalendarTab({ detail }: { detail: ConversationDetail }) {
   const [view, setView] = useState<CalendarView>("month");

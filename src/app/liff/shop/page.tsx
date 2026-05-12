@@ -1,5 +1,5 @@
 import {
-  ChevronRight,
+  ArrowUpRight,
   FileText,
   Gift,
   Plug,
@@ -9,40 +9,58 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { FeaturePage } from "../_components/FeaturePage";
+import { getActiveShopItems } from "@/lib/shop-items";
 
-const ITEMS: { Icon: LucideIcon; title: string; desc: string }[] = [
-  { Icon: ShieldCheck, title: "ประกันชั้น 1", desc: "ครอบคลุมทุกอย่าง" },
-  { Icon: FileText, title: "ต่อภาษีออนไลน์", desc: "สะดวก ไม่ต้องไปขนส่ง" },
-  { Icon: Plug, title: "Wall Charger", desc: "ที่บ้านชาร์จเร็วกว่า" },
-  { Icon: Wrench, title: "Package เช็คระยะ", desc: "ราคาประหยัด" },
-  { Icon: Gift, title: "Accessories", desc: "ของแต่งรถ ฟิล์ม" },
-];
+export const dynamic = "force-dynamic";
 
-export default function ShopPage() {
+const ICON_MAP: Record<string, LucideIcon> = {
+  ShieldCheck,
+  FileText,
+  Plug,
+  Wrench,
+  Gift,
+  ShoppingBag,
+};
+
+export default async function ShopPage() {
+  const items = await getActiveShopItems();
+
   return (
     <FeaturePage
+      eyebrow="Shop & Insurance"
       title="ร้านค้า / ประกัน"
-      subtitle="ประกันชั้น 1 ต่อภาษี อุปกรณ์เสริม"
-      icon={<ShoppingBag className="size-7" />}
-      accent="green"
+      subtitle="ประกันชั้น 1 ต่อภาษี อุปกรณ์เสริม และแพ็คเกจดูแลรถ"
     >
-      <div className="grid gap-3">
-        {ITEMS.map((it) => (
-          <button
-            key={it.title}
-            type="button"
-            className="flex items-center gap-3 border border-gray-200 bg-white p-4 text-left hover:border-emerald-300"
-          >
-            <div className="flex size-12 shrink-0 items-center justify-center bg-emerald-50 text-emerald-600">
-              <it.Icon className="size-6" />
-            </div>
-            <div className="flex-1">
-              <div className="font-semibold">{it.title}</div>
-              <div className="text-base text-gray-500">{it.desc}</div>
-            </div>
-            <ChevronRight className="size-5 text-gray-300" />
-          </button>
-        ))}
+      <div className="border-t border-zinc-200">
+        {items.map((it) => {
+          const Icon: LucideIcon =
+            (it.iconName ? ICON_MAP[it.iconName] : null) ?? ShoppingBag;
+          return (
+            <a
+              key={it.slug}
+              href={it.linkUrl ?? "#"}
+              className="flex w-full items-center gap-4 border-b border-zinc-200 py-5 text-left"
+            >
+              <Icon className="size-6 text-brand" strokeWidth={2} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold">{it.title}</span>
+                  {it.badge && (
+                    <span className="bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-brand">
+                      {it.badge}
+                    </span>
+                  )}
+                </div>
+                {it.description && (
+                  <div className="mt-0.5 text-sm font-medium text-zinc-500">
+                    {it.description}
+                  </div>
+                )}
+              </div>
+              <ArrowUpRight className="size-4 text-zinc-400" strokeWidth={2.5} />
+            </a>
+          );
+        })}
       </div>
     </FeaturePage>
   );

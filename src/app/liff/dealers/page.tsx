@@ -1,59 +1,70 @@
-import { MapPin, Navigation, Phone } from "lucide-react";
+import { Navigation, Phone } from "lucide-react";
 import { FeaturePage } from "../_components/FeaturePage";
+import { getActiveShowrooms } from "@/lib/showrooms";
 
-const DEALERS = [
-  {
-    name: "Sena EV — Bangna",
-    address: "Bangna-Trat Rd, Bangkok",
-    phone: "02-xxx-xxxx",
-    hours: "10:00–20:00",
-  },
-  {
-    name: "Sena EV — รัชโยธิน",
-    address: "ถ.พหลโยธิน เขตจตุจักร",
-    phone: "02-xxx-xxxx",
-    hours: "10:00–20:00",
-  },
-  {
-    name: "Sena EV — บางใหญ่",
-    address: "อ.บางใหญ่ จ.นนทบุรี",
-    phone: "02-xxx-xxxx",
-    hours: "09:00–19:00",
-  },
-];
+export const dynamic = "force-dynamic";
 
-export default function DealersPage() {
+export default async function DealersPage() {
+  const showrooms = await getActiveShowrooms();
+
   return (
     <FeaturePage
+      eyebrow="Showrooms"
       title="โชว์รูม / ศูนย์บริการ"
-      subtitle="ค้นหาสาขาที่ใกล้คุณ"
-      icon={<MapPin className="size-7" />}
-      accent="red"
+      subtitle="ค้นหาสาขาที่ใกล้คุณ — โทรหรือนำทางได้ทันที"
     >
-      <div className="grid gap-3">
-        {DEALERS.map((d) => (
-          <div key={d.name} className=" border border-gray-200 bg-white p-4">
-            <div className="font-semibold">{d.name}</div>
-            <div className="mt-1 text-base text-gray-500">{d.address}</div>
-            <div className="mt-0.5 text-base text-gray-500">เปิด {d.hours}</div>
-            <div className="mt-3 flex gap-2">
-              <a
-                href={`tel:${d.phone}`}
-                className="flex flex-1 items-center justify-center gap-1.5 bg-red-500 px-3 py-1.5 text-center text-base font-medium text-white"
-              >
-                <Phone className="size-4" />
-                โทร
-              </a>
-              <button
-                type="button"
-                className="flex flex-1 items-center justify-center gap-1.5 border border-gray-300 px-3 py-1.5 text-base"
-              >
-                <Navigation className="size-4" />
-                นำทาง
-              </button>
+      <div className="border-t border-zinc-200">
+        {showrooms.map((d) => {
+          const hours =
+            d.opensAt && d.closesAt
+              ? `${d.opensAt.slice(0, 5)}–${d.closesAt.slice(0, 5)}`
+              : null;
+          const navUrl =
+            d.gmapUrl ??
+            (d.lat && d.lng
+              ? `https://www.google.com/maps?q=${d.lat},${d.lng}`
+              : `https://www.google.com/maps?q=${encodeURIComponent(d.address)}`);
+          return (
+            <div key={d.id} className="border-b border-zinc-200 py-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="text-lg font-bold leading-tight">
+                    {d.name}
+                  </div>
+                  <div className="mt-1.5 text-sm font-medium text-zinc-500">
+                    {d.address}
+                  </div>
+                  {hours && (
+                    <div className="mt-0.5 text-sm font-medium text-zinc-500">
+                      เปิด {hours}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                {d.phone && (
+                  <a
+                    href={`tel:${d.phone}`}
+                    className="flex flex-1 items-center justify-center gap-1.5 bg-brand px-3 py-3 text-sm font-bold text-white"
+                  >
+                    <Phone className="size-4" strokeWidth={2.5} />
+                    โทร
+                  </a>
+                )}
+                <a
+                  href={navUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-1 items-center justify-center gap-1.5 border border-zinc-300 px-3 py-3 text-sm font-bold"
+                >
+                  <Navigation className="size-4" strokeWidth={2.5} />
+                  นำทาง
+                </a>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </FeaturePage>
   );

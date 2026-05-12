@@ -1,94 +1,71 @@
-"use client";
-
-import { useState } from "react";
 import {
   BatteryCharging,
-  LifeBuoy,
-  MapPin,
   Phone,
   Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { FeaturePage } from "../_components/FeaturePage";
+import { getActiveEmergencyContacts } from "@/lib/emergency-contacts";
+import { SOSActions } from "./SOSActions";
 
-export default function SOSPage() {
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    null,
-  );
-  const [error, setError] = useState<string | null>(null);
+export const dynamic = "force-dynamic";
 
-  function shareLocation() {
-    if (!("geolocation" in navigator)) {
-      setError("เบราว์เซอร์ไม่รองรับ");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => setError(err.message),
-      { enableHighAccuracy: true, timeout: 10_000 },
-    );
-  }
+const SECONDARY_ICONS: Record<string, LucideIcon> = {
+  breakdown: Wrench,
+  charging: BatteryCharging,
+};
+
+export default async function SOSPage() {
+  const contacts = await getActiveEmergencyContacts();
+  const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
+  const secondary = contacts.filter((c) => !c.isPrimary);
 
   return (
     <FeaturePage
-      title="SOS / ช่วยเหลือ"
-      icon={<LifeBuoy className="size-7" />}
-      accent="red"
+      eyebrow="Emergency"
+      title="SOS"
+      subtitle="ติดต่อทีมช่วยเหลือ 24 ชั่วโมง — แชร์ตำแหน่งของคุณได้ทันที"
+      tone="danger"
     >
-      <div className="space-y-3">
+      {primary && (
         <a
-          href="tel:1666"
-          className="flex w-full items-center justify-center gap-2 bg-red-600 px-4 py-5 text-center text-lg font-semibold text-white shadow-lg"
+          href={`tel:${primary.phone}`}
+          className="flex w-full flex-col bg-red-600 p-6 text-white"
         >
-          <Phone className="size-5" />
-          โทรหา 1666 — ฉุกเฉิน 24 ชม.
-        </a>
-
-        <div className="grid grid-cols-2 gap-3">
-          <a
-            href="tel:02-xxx-xxxx"
-            className="flex flex-col items-center gap-2 border border-gray-200 bg-white p-4 text-center"
-          >
-            <Wrench className="size-7 text-red-600" />
-            <div className="text-base font-medium">รถเสีย / ลากรถ</div>
-          </a>
-          <a
-            href="tel:02-xxx-xxxx"
-            className="flex flex-col items-center gap-2 border border-gray-200 bg-white p-4 text-center"
-          >
-            <BatteryCharging className="size-7 text-red-600" />
-            <div className="text-base font-medium">แบตหมด / ชาร์จ</div>
-          </a>
-        </div>
-
-        <button
-          type="button"
-          onClick={shareLocation}
-          className="flex w-full items-center justify-center gap-2 border border-red-200 bg-red-50 px-4 py-3 text-lg text-red-700"
-        >
-          <MapPin className="size-5" />
-          แชร์ตำแหน่งให้ทีมช่วยเหลือ
-        </button>
-        {location && (
-          <div className=" bg-gray-100 p-3 text-base">
-            <div>
-              <span className="text-gray-500">ตำแหน่ง:</span>{" "}
-              {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-            </div>
-            <a
-              href={`https://maps.google.com/?q=${location.lat},${location.lng}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-1 inline-block text-blue-600 underline"
-            >
-              เปิดใน Google Maps
-            </a>
+          <div className="text-[10px] font-medium uppercase tracking-[0.22em] opacity-80">
+            {primary.labelTh}
           </div>
-        )}
-        {error && (
-          <div className=" bg-red-50 p-3 text-base text-red-700">{error}</div>
-        )}
-      </div>
+          <div className="mt-2 flex items-baseline gap-3">
+            <span className="text-5xl font-bold tracking-tight">
+              {primary.phone}
+            </span>
+            <Phone className="size-6" strokeWidth={2.5} />
+          </div>
+          <div className="mt-2 text-sm font-medium opacity-90">
+            แตะเพื่อโทรหาศูนย์ช่วยเหลือ Sena EV
+          </div>
+        </a>
+      )}
+
+      {secondary.length > 0 && (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {secondary.slice(0, 2).map((c) => {
+            const Icon = SECONDARY_ICONS[c.slug] ?? Wrench;
+            return (
+              <a
+                key={c.slug}
+                href={`tel:${c.phone}`}
+                className="flex flex-col gap-2 border border-zinc-300 p-4"
+              >
+                <Icon className="size-6 text-red-600" strokeWidth={2} />
+                <div className="text-base font-bold">{c.labelTh}</div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      <SOSActions />
     </FeaturePage>
   );
 }

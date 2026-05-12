@@ -29,23 +29,33 @@ export default function LiffLayout({
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-lg text-gray-500">กำลังโหลด LIFF...</div>
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-brand">
+            Sena Green Auto
+          </div>
+          <div className="mt-2 text-base font-medium text-zinc-500">
+            กำลังโหลด…
+          </div>
+        </div>
       </div>
     );
   }
 
   if (status === "error") {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6">
+      <div className="flex min-h-screen items-center justify-center bg-white p-6">
         <div className="max-w-md text-center">
-          <div className="mb-2 text-lg font-semibold text-red-600">
+          <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-red-600">
+            Error
+          </div>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight">
             เปิด Mini App ไม่ได้
-          </div>
-          <div className="text-lg text-gray-600">{error}</div>
-          <div className="mt-4 text-base text-gray-400">
+          </h1>
+          <p className="mt-3 text-base font-medium text-zinc-600">{error}</p>
+          <p className="mt-4 text-sm font-medium text-zinc-400">
             กรุณาเปิดผ่าน LINE app จาก Rich Menu ของ Sena EV
-          </div>
+          </p>
         </div>
       </div>
     );

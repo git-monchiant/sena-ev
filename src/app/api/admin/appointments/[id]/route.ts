@@ -2,16 +2,16 @@ import { NextResponse } from "next/server";
 import {
   getById,
   remove,
+  SCHEDULE_STATUSES,
+  SCHEDULE_TYPES,
   update,
-  type BookingStatus,
-  type ServiceType,
-} from "@/lib/service-bookings";
+  type ScheduleStatus,
+  type ScheduleType,
+  type UpdateSchedulePatch,
+} from "@/lib/schedules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const SERVICE_TYPES: ServiceType[] = ["maintenance", "repair", "inspection"];
-const STATUSES: BookingStatus[] = ["NEW", "CONFIRMED", "DONE", "CANCELLED"];
 
 export async function GET(
   _req: Request,
@@ -31,25 +31,34 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = (await req.json()) as {
-    serviceType?: string;
+    type?: string;
+    subtype?: string | null;
+    title?: string;
     scheduledAt?: string;
-    serviceCenter?: string | null;
+    durationMinutes?: number;
+    showroomId?: string | null;
+    location?: string | null;
     notes?: string | null;
     status?: string;
+    serviceType?: string;
+    serviceCenter?: string | null;
+    cancelReason?: string | null;
+    payload?: Record<string, unknown>;
   };
 
-  const patch: Parameters<typeof update>[1] = {};
+  const patch: UpdateSchedulePatch = {};
 
-  if (body.serviceType !== undefined) {
-    if (!SERVICE_TYPES.includes(body.serviceType as ServiceType)) {
+  if (body.type !== undefined) {
+    if (!SCHEDULE_TYPES.includes(body.type as ScheduleType)) {
       return NextResponse.json(
-        { error: `serviceType must be one of ${SERVICE_TYPES.join(", ")}` },
+        { error: `type must be one of ${SCHEDULE_TYPES.join(", ")}` },
         { status: 400 },
       );
     }
-    patch.serviceType = body.serviceType as ServiceType;
+    patch.type = body.type as ScheduleType;
   }
-
+  if (body.subtype !== undefined) patch.subtype = body.subtype;
+  if (body.title !== undefined) patch.title = body.title;
   if (body.scheduledAt !== undefined) {
     const d = new Date(body.scheduledAt);
     if (Number.isNaN(d.getTime())) {
@@ -60,18 +69,30 @@ export async function PATCH(
     }
     patch.scheduledAt = d;
   }
-
-  if (body.serviceCenter !== undefined) patch.serviceCenter = body.serviceCenter;
+  if (body.durationMinutes !== undefined)
+    patch.durationMinutes = body.durationMinutes;
+  if (body.showroomId !== undefined) patch.showroomId = body.showroomId;
+  if (body.location !== undefined) patch.location = body.location;
   if (body.notes !== undefined) patch.notes = body.notes;
-
+  if (body.cancelReason !== undefined) patch.cancelReason = body.cancelReason;
+  if (body.payload !== undefined) patch.payload = body.payload;
   if (body.status !== undefined) {
-    if (!STATUSES.includes(body.status as BookingStatus)) {
+    if (!SCHEDULE_STATUSES.includes(body.status as ScheduleStatus)) {
       return NextResponse.json(
-        { error: `status must be one of ${STATUSES.join(", ")}` },
+        { error: `status must be one of ${SCHEDULE_STATUSES.join(", ")}` },
         { status: 400 },
       );
     }
-    patch.status = body.status as BookingStatus;
+    patch.status = body.status as ScheduleStatus;
+  }
+
+  // legacy field mapping
+  if (body.serviceType !== undefined && body.subtype === undefined) {
+    patch.subtype = body.serviceType;
+    if (!patch.type) patch.type = "service";
+  }
+  if (body.serviceCenter !== undefined && body.location === undefined) {
+    patch.location = body.serviceCenter;
   }
 
   const updated = await update(id, patch);

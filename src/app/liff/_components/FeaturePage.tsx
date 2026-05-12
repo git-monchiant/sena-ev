@@ -1,73 +1,69 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { closeLiff, getProfile } from "@/lib/liff";
-
-type Profile = {
-  displayName: string;
-  pictureUrl?: string;
-};
+import { type ReactNode } from "react";
 
 export function FeaturePage({
+  eyebrow,
   title,
   subtitle,
-  icon,
-  accent = "blue",
+  tone = "default",
   children,
+  footer,
 }: {
+  eyebrow?: string;
   title: string;
   subtitle?: string;
-  icon: ReactNode;
-  accent?: "blue" | "green" | "orange" | "red" | "purple" | "yellow";
+  showBack?: boolean;
+  tone?: "default" | "danger";
   children?: ReactNode;
+  footer?: ReactNode;
 }) {
-  const [profile, setProfile] = useState<Profile | null>(null);
-
-  useEffect(() => {
-    getProfile()
-      .then((p) =>
-        setProfile({ displayName: p.displayName, pictureUrl: p.pictureUrl }),
-      )
-      .catch(() => {});
-  }, []);
-
-  const accentBg: Record<string, string> = {
-    blue: "bg-blue-50 text-blue-600",
-    green: "bg-emerald-50 text-emerald-600",
-    orange: "bg-orange-50 text-orange-600",
-    red: "bg-red-50 text-red-600",
-    purple: "bg-purple-50 text-purple-600",
-    yellow: "bg-yellow-50 text-yellow-700",
-  };
+  const isDanger = tone === "danger";
 
   return (
-    <main className="flex min-h-screen w-full flex-col p-5">
-      <header className="mb-6">
-        <div
-          className={`mb-3 flex size-14 items-center justify-center ${accentBg[accent]}`}
-        >
-          {icon}
-        </div>
-        <h1 className="text-2xl font-bold">{title}</h1>
-        {subtitle && <p className="mt-1 text-lg text-gray-500">{subtitle}</p>}
-        {profile && (
-          <p className="mt-2 text-base text-gray-400">
-            สวัสดีคุณ {profile.displayName}
+    <main className="flex min-h-screen w-full flex-col bg-white text-zinc-900">
+      <header className="px-5 pt-6 pb-7">
+        {eyebrow && (
+          <div
+            className={`mb-3 text-[11px] font-medium uppercase tracking-[0.22em] ${
+              isDanger ? "text-red-600" : "text-brand"
+            }`}
+          >
+            {eyebrow}
+          </div>
+        )}
+        <h1 className="text-[2.25rem] font-bold leading-[1.05] tracking-tight">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="mt-3 max-w-md text-base font-medium leading-relaxed text-zinc-500">
+            {subtitle}
           </p>
         )}
+        <div
+          className={`mt-6 h-px w-12 ${isDanger ? "bg-red-600" : "bg-brand"}`}
+        />
       </header>
 
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 px-5 pb-10">{children}</div>
 
-      <footer className="mt-8 flex gap-2">
-        <button
-          type="button"
-          onClick={() => closeLiff()}
-          className="flex-1 border border-gray-300 px-4 py-3 text-lg"
-        >
-          ปิด
-        </button>
-      </footer>
+      {footer && <div className="px-5 pb-8">{footer}</div>}
     </main>
+  );
+}
+
+export function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
+      {children}
+    </div>
+  );
+}
+
+export function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
+      {children}
+    </span>
   );
 }

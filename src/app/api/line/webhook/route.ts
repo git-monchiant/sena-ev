@@ -16,6 +16,7 @@ import { query } from "@/lib/db";
 import { getMessagingClient } from "@/lib/line/client";
 import { verifyWebhookSignature } from "@/lib/line/verify";
 import { emitInboxEvent } from "@/lib/sse";
+import { handleInboundMessage } from "@/lib/bot/handle-inbound";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,6 +135,22 @@ async function handleEvent(event: webhook.Event) {
         messageType,
         at: Date.now(),
       });
+
+      // Bot autopilot (best-effort; failures must NOT break webhook)
+      if (process.env.BOT_AUTOPILOT_ENABLED !== "false") {
+        try {
+          await handleInboundMessage({
+            lineUserId: userId,
+            customerId: customer.id,
+            conversationId: conversation.id,
+            messageType,
+            text:
+              messageType === "text" ? (content.text as string) ?? null : null,
+          });
+        } catch (err) {
+          console.error("[webhook] bot autopilot failed:", err);
+        }
+      }
       break;
     }
     case "unsend": {

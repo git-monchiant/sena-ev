@@ -25,13 +25,11 @@ export function DatePicker({
   onChange,
   getAvailability,
   hideFullDays = false,
-  accent = "blue",
 }: {
   value: Date | null;
   onChange: (date: Date) => void;
   getAvailability?: (date: Date) => DateAvailability;
   hideFullDays?: boolean;
-  accent?: "blue" | "green" | "orange";
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -44,14 +42,8 @@ export function DatePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const accentClass: Record<string, string> = {
-    blue: "bg-blue-600 text-white",
-    green: "bg-emerald-600 text-white",
-    orange: "bg-orange-600 text-white",
-  };
-
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {months.map((monthStart) => (
         <MonthGrid
           key={monthStart.toISOString()}
@@ -61,13 +53,12 @@ export function DatePicker({
           onSelect={onChange}
           getAvailability={getAvailability}
           hideFullDays={hideFullDays}
-          accentClass={accentClass[accent]!}
         />
       ))}
-      <div className="flex flex-wrap items-center gap-3 text-[10px] text-gray-500">
-        <Legend dot="bg-blue-500" label="ว่าง" />
-        <Legend dot="bg-amber-400" label="เหลือน้อย" />
-        <Legend dot="bg-gray-300" label="เต็ม / ปิด" />
+      <div className="flex flex-wrap items-center gap-4 text-xs font-bold uppercase tracking-wider text-zinc-600">
+        <Legend dot="bg-brand" label="ว่าง" />
+        <Legend dot="bg-amber-500" label="เหลือน้อย" />
+        <Legend dot="bg-zinc-300" label="เต็ม / ปิด" />
       </div>
     </div>
   );
@@ -79,7 +70,6 @@ export function DatePicker({
     onSelect,
     getAvailability,
     hideFullDays,
-    accentClass,
   }: {
     monthStart: Date;
     today: Date;
@@ -87,7 +77,6 @@ export function DatePicker({
     onSelect: (d: Date) => void;
     getAvailability?: (d: Date) => DateAvailability;
     hideFullDays: boolean;
-    accentClass: string;
   }) {
     const year = monthStart.getFullYear();
     const month = monthStart.getMonth();
@@ -106,14 +95,14 @@ export function DatePicker({
 
     return (
       <div>
-        <div className="mb-2 text-center text-lg font-semibold">
+        <div className="mb-3 text-base font-bold uppercase tracking-[0.2em] text-zinc-900">
           {MONTHS_TH[month]} {year + 543}
         </div>
-        <div className="grid grid-cols-7 text-center text-[10px] text-gray-500">
+        <div className="grid grid-cols-7 text-center text-xs font-bold uppercase tracking-wider text-zinc-600">
           {WEEKDAYS.map((w, i) => (
             <div
               key={w}
-              className={`py-1 ${i === 0 || i === 6 ? "text-red-500" : ""}`}
+              className={`py-2 ${i === 0 || i === 6 ? "text-red-500" : ""}`}
             >
               {w}
             </div>
@@ -136,28 +125,28 @@ export function DatePicker({
                 type="button"
                 disabled={disabled}
                 onClick={() => onSelect(date)}
-                className={`relative flex aspect-square flex-col items-center justify-center text-lg transition-colors ${
+                className={`relative flex aspect-square flex-col items-center justify-center text-lg font-bold transition-colors ${
                   disabled
-                    ? "cursor-not-allowed text-gray-300"
+                    ? "cursor-not-allowed text-zinc-300"
                     : isSelected
-                      ? accentClass
+                      ? "bg-brand text-white"
                       : isToday
-                        ? "bg-blue-50 font-semibold"
-                        : "hover:bg-gray-100"
+                        ? "text-brand ring-1 ring-inset ring-brand"
+                        : "text-zinc-900 hover:bg-zinc-100"
                 }`}
               >
                 <span>{date.getDate()}</span>
                 {!disabled && !isSelected && (
                   <span
                     className={`absolute bottom-1 size-1 rounded-full ${
-                      avail === "partial" ? "bg-amber-400" : "bg-blue-500"
+                      avail === "partial" ? "bg-amber-500" : "bg-brand"
                     }`}
                   />
                 )}
                 {disabled &&
                   !isPast &&
                   (avail === "full" || avail === "closed") && (
-                    <span className="absolute bottom-0.5 text-[8px] text-gray-400">
+                    <span className="absolute bottom-0.5 text-[9px] font-bold text-zinc-400">
                       {avail === "full" ? "เต็ม" : "ปิด"}
                     </span>
                   )}

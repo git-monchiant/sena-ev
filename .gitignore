@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# User-uploaded media (LINE chat attachments)
+/public/uploads
+
 # vercel
 .vercel
 

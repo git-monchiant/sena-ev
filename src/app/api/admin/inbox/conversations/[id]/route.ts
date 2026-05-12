@@ -47,21 +47,36 @@ export async function GET(
 
   const tags = await listCustomerTags(detail.conversation.customer_id);
 
-  const serviceBookings = await query<{
+  const schedules = await query<{
     id: string;
-    service_type: string;
+    type: string;
+    subtype: string | null;
+    title: string;
     scheduled_at: Date;
-    service_center: string | null;
+    location: string | null;
     status: string;
     notes: string | null;
     created_at: Date;
   }>(
-    `SELECT id, service_type, scheduled_at, service_center, status, notes, created_at
-     FROM sena_ev.service_bookings
+    `SELECT id, type, subtype, title, scheduled_at, location, status, notes, created_at
+     FROM sena_ev.schedules
      WHERE customer_id = $1
      ORDER BY scheduled_at DESC LIMIT 50`,
     [detail.conversation.customer_id],
   );
+
+  // Backward-compat field name for existing client (admin/inbox/page.tsx)
+  const serviceBookings = schedules.rows
+    .filter((s) => s.type === "service")
+    .map((s) => ({
+      id: s.id,
+      service_type: s.subtype ?? "maintenance",
+      scheduled_at: s.scheduled_at,
+      service_center: s.location,
+      status: s.status,
+      notes: s.notes,
+      created_at: s.created_at,
+    }));
 
   return NextResponse.json({
     conversation: detail.conversation,
@@ -69,6 +84,7 @@ export async function GET(
     customer,
     leads: leads.rows,
     tags,
-    serviceBookings: serviceBookings.rows,
+    schedules: schedules.rows,
+    serviceBookings,
   });
 }

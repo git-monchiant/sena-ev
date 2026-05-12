@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  BookText,
+  Car,
   FileText,
   Inbox,
   LayoutDashboard,
@@ -26,10 +28,12 @@ const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/inbox", label: "Inbox", icon: Inbox },
   { href: "/admin/customers", label: "Customers", icon: Users },
+  { href: "/admin/cars", label: "Cars", icon: Car },
   { href: "/admin/tags", label: "Tags", icon: Tag },
   { href: "/admin/richmenu", label: "Rich Menu", icon: LayoutGrid },
   { href: "/admin/materials", label: "Materials", icon: FileText },
   { href: "/admin/templates", label: "Templates", icon: MessageSquareText },
+  { href: "/admin/wiki", label: "Wiki", icon: BookText },
 ];
 
 const STORAGE_KEY = "sena-admin-sidebar-collapsed";
@@ -80,7 +84,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const currentLabel = NAV.find((n) => isActive(n.href))?.label ?? "Admin";
 
   return (
-    <div className="flex h-svh w-full overflow-hidden bg-gray-50">
+    <div className="flex h-svh w-full overflow-hidden bg-muted/40">
       <audio ref={audioRef} preload="auto">
         <source
           src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
@@ -90,12 +94,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       <aside
         className={cn(
-          "flex shrink-0 flex-col border-r border-gray-200 bg-white transition-[width] duration-200",
+          "flex shrink-0 flex-col bg-sidebar/80 backdrop-blur transition-[width] duration-200",
           collapsed ? "w-14" : "w-56",
         )}
       >
-        <div className="flex h-14 items-center gap-2 border-b border-gray-200 px-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white">
+        <div className="flex h-14 items-center gap-2 px-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white shadow-sm">
             S
           </div>
           {!collapsed && (
@@ -121,11 +125,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     href={item.href}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors",
+                      "flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors",
                       collapsed && "justify-center",
                       active
-                        ? "bg-accent font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                        ? "bg-card font-medium text-foreground shadow-sm ring-1 ring-border/60"
+                        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                     )}
                   >
                     <Icon className="size-4 shrink-0" />
@@ -145,12 +149,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
 
-        <div className="border-t border-gray-200 p-2">
+        <div className="p-2 pt-1">
           <button
             type="button"
             onClick={toggleCollapsed}
             className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground",
+              "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground",
               collapsed && "justify-center",
             )}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -181,25 +185,27 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-4">
+        <header className="flex h-14 shrink-0 items-center gap-2 bg-background/70 px-4 backdrop-blur">
           <button
             type="button"
             onClick={toggleCollapsed}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent/60 hover:text-foreground"
             title="Toggle sidebar"
           >
             <PanelLeft className="size-4" />
           </button>
-          <div className="mr-2 h-4 w-px bg-border" />
+          <div className="mr-2 h-4 w-px bg-border/70" />
           <h1 className="text-sm font-semibold">{currentLabel}</h1>
           <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
             <span>OA: @551moqzs (SENA-EV)</span>
-            <div className="h-3 w-px bg-border" />
+            <div className="h-3 w-px bg-border/70" />
             <span>v0.1 dev</span>
           </div>
         </header>
-        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {children}
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-2 pt-0">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+            {children}
+          </div>
         </main>
       </div>
     </div>

@@ -1,0 +1,8 @@
+{
+  "slug": "faq-charging",
+  "title": "การชาร์จ EV — บ้าน + สาธารณะ",
+  "kind": "faq",
+  "bodyMd": "## ประเภทการชาร์จ\n\n### AC (Slow charging)\n- ใช้ที่บ้าน หรือที่ทำงาน\n- ความเร็ว: 3-22 kW\n- เวลา 0→100%: 6-12 ชม.\n\n### DC (Fast charging)\n- ใช้ตามสถานีชาร์จสาธารณะ\n- ความเร็ว: 50-180 kW (ขึ้นกับรถและสถานี)\n- เวลา 20→80%: 25-40 นาที\n\n## Home Charger\n\n- Sena EV มี Wall Charger ขาย (ดู [[shop_items]] หรือ /liff/shop)\n- ราคาเริ่มต้นประมาณ X บาท (TBD)\n- รวมติดตั้งโดยช่างผู้เชี่ยวชาญ\n- ต้องตรวจระบบไฟฟ้าบ้านก่อนติดตั้ง (TBD: บริการประเมินฟรีหรือมีค่าใช้จ่าย)\n\n## สถานีชาร์จที่รถใช้ได้ (TBD: confirm partner)\n\n- EleX by EGAT\n- PEA Volta\n- EA Anywhere\n- PTT EV Station Pluz\n- Sharge\n- Evolt\n\n## การชาร์จที่โชว์รูม Sena EV\n\n- โชว์รูมที่มี EV Charger: [[showroom-bangna]] · [[showroom-bangyai]]\n- *(TBD: ฟรีสำหรับลูกค้า / ค่าใช้จ่าย)*\n\n## ระยะการใช้งานต่อชาร์จ\n\nดูจาก spec ของแต่ละรุ่น เช่น [[car-jaecoo-j7]] = 540 km/ชาร์จ\n\n## FAQ\n\n- *ชาร์จที่บ้านได้ไหมถ้าไม่มี home charger?* ได้ — เสียบปลั๊กไฟบ้านธรรมดาได้แต่ช้ามาก (10-15 ชม.) ไม่แนะนำใช้ทุกวัน\n- *แบตเสื่อมเร็วไหมถ้าชาร์จ DC บ่อย?* ใช้ DC บ่อยเร่งการเสื่อมเล็กน้อย — แนะนำใช้ AC เป็นหลัก DC เฉพาะเดินทางไกล\n- *ค่าไฟชาร์จที่บ้าน ต่อ km เท่าไหร่?* ประมาณ 1-1.5 บาท/km (เทียบรถน้ำมันประมาณ 3-4 บาท/km)",
+  "tags": ["charging", "ชาร์จ", "wall-charger", "home-charger", "faq"],
+  "aliases": ["ชาร์จ", "charging", "ที่ชาร์จ", "wall charger", "home charger"]
+}

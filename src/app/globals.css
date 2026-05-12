@@ -3,35 +3,40 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.99 0.002 230);
+  --foreground: oklch(0.18 0.01 240);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.18 0.01 240);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.18 0.01 240);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.975 0.003 230);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.97 0.004 230);
+  --muted-foreground: oklch(0.55 0.01 240);
+  --accent: oklch(0.965 0.005 230);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.86 0 0);
-  --input: oklch(0.86 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  --border: oklch(0.935 0.004 230);
+  --input: oklch(0.92 0.004 230);
+  --ring: oklch(0.78 0.01 230);
+  --radius: 0.75rem;
 
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --brand: oklch(0.42 0.10 152);
+  --brand-foreground: oklch(0.985 0 0);
+  --brand-soft: oklch(0.96 0.03 152);
+  --brand-rule: oklch(0.85 0.04 152);
+
+  --sidebar: oklch(0.985 0.002 230);
+  --sidebar-foreground: oklch(0.18 0.01 240);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent: oklch(0.965 0.005 230);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-border: oklch(0.945 0.004 230);
+  --sidebar-ring: oklch(0.78 0.01 230);
 }
 
 .dark {
@@ -101,15 +106,31 @@
   --radius-xl: calc(var(--radius) + 4px);
 
   --font-sans: var(--font-prompt);
+
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-rule: var(--brand-rule);
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+  html, body {
+    overscroll-behavior: none;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-prompt), system-ui, -apple-system, sans-serif;
+    font-weight: 500;
+    font-feature-settings: "ss01", "tnum";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.01em;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),

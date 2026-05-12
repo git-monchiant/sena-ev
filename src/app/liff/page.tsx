@@ -1,165 +1,142 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { MapPin, MessageSquare, QrCode, X } from "lucide-react";
+import Link from "next/link";
 import {
-  closeLiff,
-  getLiffContext,
-  getProfile,
-  scanQRCode,
-  sendTextMessage,
-} from "@/lib/liff";
+  ArrowUpRight,
+  Bell,
+  Calculator,
+  Car,
+  KeyRound,
+  LifeBuoy,
+  MapPin,
+  Repeat,
+  ShoppingBag,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+import { getBrand } from "@/lib/company-settings";
+import { LiffHomeProfile } from "./LiffHomeProfile";
 
-type Profile = {
-  userId: string;
-  displayName: string;
-  pictureUrl?: string;
-  statusMessage?: string;
-};
+export const dynamic = "force-dynamic";
 
-type Context = Awaited<ReturnType<typeof getLiffContext>>;
+const PRIMARY: { href: string; title: string; sub: string; Icon: LucideIcon }[] =
+  [
+    {
+      href: "/liff/catalog",
+      title: "รุ่นรถ EV",
+      sub: "เลือกรุ่นและรายละเอียด",
+      Icon: Car,
+    },
+    {
+      href: "/liff/test-drive",
+      title: "จองทดลองขับ",
+      sub: "นัดทดลองขับที่โชว์รูม",
+      Icon: KeyRound,
+    },
+    {
+      href: "/liff/my-car",
+      title: "รถของฉัน",
+      sub: "ข้อมูลรถและประกัน",
+      Icon: Car,
+    },
+    {
+      href: "/liff/service",
+      title: "จองเซอร์วิส",
+      sub: "นัดเช็คระยะและตรวจสภาพ",
+      Icon: Wrench,
+    },
+  ];
 
-export default function LiffHome() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [ctx, setCtx] = useState<Context | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string>("");
+const SECONDARY: {
+  href: string;
+  title: string;
+  Icon: LucideIcon;
+}[] = [
+  { href: "/liff/financing", title: "คำนวณสินเชื่อ", Icon: Calculator },
+  { href: "/liff/trade-in", title: "Trade-in รถเก่า", Icon: Repeat },
+  { href: "/liff/shop", title: "ร้านค้า / ประกัน", Icon: ShoppingBag },
+  { href: "/liff/dealers", title: "โชว์รูม", Icon: MapPin },
+  { href: "/liff/inbox", title: "แจ้งเตือน", Icon: Bell },
+  { href: "/liff/sos", title: "SOS", Icon: LifeBuoy },
+];
 
-  useEffect(() => {
-    (async () => {
-      const [p, c] = await Promise.all([getProfile(), getLiffContext()]);
-      setProfile(p);
-      setCtx(c);
-    })().catch((err) =>
-      setMessage(`โหลด profile ไม่ได้: ${err.message ?? err}`),
-    );
-  }, []);
+export default async function LiffHome() {
+  const brand = await getBrand();
+  const eyebrow = brand?.nameEn ?? "Sena Green Auto";
+  const tagline = brand?.tagline ?? "Drive the Future.";
 
-  async function handleSendMessage() {
-    setBusy(true);
-    try {
-      await sendTextMessage("ทดสอบส่งข้อความจาก Sena EV Mini App");
-      setMessage("ส่งข้อความเรียบร้อย — ปิด app เพื่อดูใน chat");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleScan() {
-    setBusy(true);
-    try {
-      const value = await scanQRCode();
-      setMessage(`สแกนได้: ${value ?? "(ไม่มีค่า)"}`);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleLocation() {
-    setBusy(true);
-    setMessage("");
-    if (!("geolocation" in navigator)) {
-      setMessage("เบราว์เซอร์ไม่รองรับ geolocation");
-      setBusy(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setMessage(
-          `ตำแหน่ง: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`,
-        );
-        setBusy(false);
-      },
-      (err) => {
-        setMessage(`ดึงตำแหน่งไม่ได้: ${err.message}`);
-        setBusy(false);
-      },
-      { enableHighAccuracy: true, timeout: 10_000 },
-    );
-  }
+  // Allow 1- or 2-line tagline by splitting on first space-after-word boundary
+  const taglineLines = formatTagline(tagline);
 
   return (
-    <main className="w-full p-5">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold">Sena EV</h1>
-        <p className="text-lg text-gray-500">Mini App</p>
+    <main className="flex min-h-screen w-full flex-col bg-white text-zinc-900">
+      <header className="px-5 pt-6 pb-2">
+        <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.22em] text-brand">
+          {eyebrow}
+        </div>
+        <h1 className="text-[2.5rem] font-bold leading-[1.02] tracking-tight">
+          {taglineLines.map((line, i) => (
+            <span key={i} className="block">
+              {line}
+            </span>
+          ))}
+        </h1>
+        <p className="mt-4 max-w-md text-base font-medium leading-relaxed text-zinc-500">
+          มินิแอปลูกค้า Sena EV — จัดการรถ จองบริการ และดูโปรโมชั่นในที่เดียว
+        </p>
       </header>
 
-      {profile && (
-        <section className="mb-6 flex items-center gap-3 border border-gray-200 p-4">
-          {profile.pictureUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.pictureUrl}
-              alt={profile.displayName}
-              className="h-12 w-12 rounded-full"
-            />
-          )}
-          <div>
-            <div className="font-semibold">{profile.displayName}</div>
-            {profile.statusMessage && (
-              <div className="text-base text-gray-500">
-                {profile.statusMessage}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
+      <LiffHomeProfile />
 
-      <section className="mb-6 grid gap-3">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={handleSendMessage}
-          className="flex items-center justify-center gap-2 bg-green-600 px-4 py-3 text-white disabled:opacity-50"
-        >
-          <MessageSquare className="size-5" />
-          ส่งข้อความเข้า chat
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={handleScan}
-          className="flex items-center justify-center gap-2 bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
-        >
-          <QrCode className="size-5" />
-          สแกน QR Code
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={handleLocation}
-          className="flex items-center justify-center gap-2 bg-purple-600 px-4 py-3 text-white disabled:opacity-50"
-        >
-          <MapPin className="size-5" />
-          ดึงตำแหน่งปัจจุบัน
-        </button>
-        <button
-          type="button"
-          onClick={() => closeLiff()}
-          className="flex items-center justify-center gap-2 border border-gray-300 px-4 py-3"
-        >
-          <X className="size-5" />
-          ปิด Mini App
-        </button>
+      <section className="mt-8 px-5">
+        <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500">
+          บริการหลัก
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {PRIMARY.map(({ href, title, sub, Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group flex aspect-square flex-col justify-between border border-zinc-200 bg-white p-4 transition-colors hover:border-brand"
+            >
+              <Icon className="size-7 text-brand" strokeWidth={2} />
+              <div>
+                <div className="text-lg font-bold leading-tight">{title}</div>
+                <div className="mt-1 text-xs font-medium leading-snug text-zinc-500">
+                  {sub}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
       </section>
 
-      {message && (
-        <section className=" bg-gray-100 p-3 text-lg">{message}</section>
-      )}
-
-      {ctx && (
-        <details className="mt-6 text-base text-gray-400">
-          <summary>LIFF context</summary>
-          <pre className="mt-2 whitespace-pre-wrap">
-            {JSON.stringify(ctx, null, 2)}
-          </pre>
-        </details>
-      )}
+      <section className="mt-8 px-5 pb-10">
+        <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500">
+          เพิ่มเติม
+        </div>
+        <div className="border-t border-zinc-200">
+          {SECONDARY.map(({ href, title, Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-3 border-b border-zinc-200 py-4"
+            >
+              <Icon className="size-5 text-zinc-900" strokeWidth={2} />
+              <div className="flex-1 text-base font-bold">{title}</div>
+              <ArrowUpRight
+                className="size-4 text-zinc-400"
+                strokeWidth={2.5}
+              />
+            </Link>
+          ))}
+        </div>
+      </section>
     </main>
   );
+}
+
+function formatTagline(t: string): string[] {
+  // Break on the first " the " or " ที่ " boundary, otherwise return whole
+  const m = t.match(/^(\S+)\s+(.+)$/);
+  if (m && t.length > 12) return [m[1]!, m[2]!];
+  return [t];
 }
