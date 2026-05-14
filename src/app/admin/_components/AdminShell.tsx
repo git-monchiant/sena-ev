@@ -11,7 +11,9 @@ import {
   Inbox,
   LayoutDashboard,
   LayoutGrid,
+  MapPin,
   MessageSquareText,
+  Sparkles,
   Tag,
   Users,
   type LucideIcon,
@@ -29,6 +31,8 @@ const NAV: NavItem[] = [
   { href: "/admin/inbox", label: "Inbox", icon: Inbox },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/cars", label: "Cars", icon: Car },
+  { href: "/admin/showrooms", label: "Showrooms", icon: MapPin },
+  { href: "/admin/promotions", label: "Promotions", icon: Sparkles },
   { href: "/admin/tags", label: "Tags", icon: Tag },
   { href: "/admin/richmenu", label: "Rich Menu", icon: LayoutGrid },
   { href: "/admin/materials", label: "Materials", icon: FileText },
@@ -125,7 +129,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center gap-2 bg-background/70 px-4 backdrop-blur">
+        <header className="relative z-[10000] flex h-14 shrink-0 items-center gap-2 bg-background/95 px-4 backdrop-blur">
           <h1 className="text-sm font-semibold">{currentLabel}</h1>
           <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
             <span>OA: @551moqzs (SENA-EV)</span>
@@ -169,7 +173,13 @@ function HoverLabel({
   useLayoutEffect(() => {
     if (!open || !wrapRef.current) return;
     const rect = wrapRef.current.getBoundingClientRect();
-    setPos({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+    // Header bar is h-14 (56px). Keep tooltip centerline below that + tooltip
+    // half-height (~16px) + breathing room so it never overlaps the top navbar.
+    const NAVBAR_H = 56;
+    const TOOLTIP_HALF = 18;
+    const center = rect.top + rect.height / 2;
+    const top = Math.max(center, NAVBAR_H + TOOLTIP_HALF + 4);
+    setPos({ top, left: rect.right + 8 });
   }, [open]);
 
   return (

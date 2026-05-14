@@ -153,7 +153,15 @@ async function sendAndSave(
     });
     lineMessageId = res.sentMessages?.[0]?.id ?? null;
   } catch (err) {
-    console.error("[bot] push failed", err);
+    // Critical: do NOT save the outbound message when LINE rejected it,
+    // otherwise admins see a "sent" bubble in the inbox that never reached
+    // the customer's phone. Just log and bail — the bot will get another
+    // chance on the customer's next inbound message.
+    console.error(
+      "[bot] push failed — skipping outbound save (admin would see a ghost message)",
+      err,
+    );
+    return;
   }
 
   try {
